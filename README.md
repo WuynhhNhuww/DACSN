@@ -15,15 +15,34 @@ DACSN là một nền tảng thương mại điện tử cho phép người dùn
 - **Cơ sở dữ liệu**: MongoDB  
 
 ## Cấu trúc thư mục
-```
-DACSN/
-├── client/           # Thư mục chứa mã nguồn frontend
-│   ├── public/       # Thư mục công khai
-│   └── src/         # Thư mục mã nguồn
-├── server/           # Thư mục chứa mã nguồn backend
-│   └── models/       # Mô hình MongoDB
-└── README.md         # Tài liệu hướng dẫn
-```
+
+## Backend
+
+- config
+- controllers
+- middleware
+- models
+- node_modules
+- routes
+- .env
+- package.json
+- package-lock.json
+- seed.js
+- seedDummy.js
+- server.js
+
+## Frontend
+
+- public
+- src  
+  - api  
+  - assets  
+  - components  
+  - context  
+  - layouts  
+  - pages  
+  - styles  
+
 
 ## Hướng dẫn cài đặt
 1. **Clone repository**: `git clone https://github.com/WuynhhNhuww/DACSN.git`
