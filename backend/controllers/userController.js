@@ -1,0 +1,345 @@
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const bcrypt = require("bcryptjs");
+
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+
+// ======================== AUTH ========================
+
+exports.registerUser = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (await User.findOne({ email }))
+      return res.status(400).json({ message: "Email already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashedPassword });
+    res.status(201).json({ _id: user._id, name: user.name, email: user.email });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user || !(await bcrypt.compare(password, user.password)))
+      return res.status(401).json({ message: "Email hoặc mật khẩu không đúng" });
+
+    if (user.isBlocked)
+      return res.status(403).json({ message: "Tài khoản của bạn đã bị khóa vĩnh viễn." });
+
+    // Seller bị khóa vĩnh viễn
+    if (user.role === "seller" && user.sellerInfo?.sellerStatus === "locked")
+      return res.status(403).json({ message: "Gian hàng của bạn đã bị khóa vĩnh viễn do vi phạm." });
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id),
+      sellerInfo: user.sellerInfo,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.name = req.body.name || user.name;
+    const updated = await user.save();
+    res.json({ _id: updated._id, name: updated.name, email: updated.email, role: updated.role, sellerInfo: updated.sellerInfo });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ======================== SELLER REGISTRATION ========================
+
+// Buyer đăng ký trở thành seller → status = "pending", chờ admin duyệt
+exports.becomeSeller = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.role === "seller")
+      return res.status(400).json({ message: "Bạn đã là người bán." });
+    if (user.role === "admin")
+      return res.status(400).json({ message: "Admin không thể đăng ký seller." });
+
+    user.role = "seller";
+    user.sellerInfo = {
+      shopName: req.body.shopName || user.name + " Store",
+      shopDescription: req.body.shopDescription || "",
+      phone: req.body.phone || "",
+      address: req.body.address || "",
+      sellerStatus: "pending",
+      isApproved: false,
+      reputationScore: 5,
+      violationCount: 0,
+    };
+    const updated = await user.save();
+    res.json({
+      message: "Đăng ký thành công. Tài khoản seller đang chờ admin duyệt.",
+      sellerInfo: updated.sellerInfo,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ======================== ADMIN — SELLER MANAGEMENT ========================
+
+// Duyệt seller
+exports.approveSeller = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || user.role !== "seller")
+      return res.status(404).json({ message: "Seller không tồn tại" });
+
+    user.sellerInfo.sellerStatus = "active";
+    user.sellerInfo.isApproved = true;
+    user.sellerInfo.approvedAt = new Date();
+    user.sellerInfo.rejectedReason = "";
+    const updated = await user.save();
+    res.json({ message: "Đã duyệt seller thành công.", sellerInfo: updated.sellerInfo });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Từ chối seller
+exports.rejectSeller = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || user.role !== "seller")
+      return res.status(404).json({ message: "Seller không tồn tại" });
+
+    const reason = req.body.reason || "Hồ sơ không hợp lệ";
+    user.sellerInfo.sellerStatus = "pending";
+    user.sellerInfo.isApproved = false;
+    user.sellerInfo.rejectedReason = reason;
+    const updated = await user.save();
+    res.json({ message: "Đã từ chối đăng ký seller.", sellerInfo: updated.sellerInfo });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Cập nhật trạng thái seller (active / violation / locked / inactive)
+exports.updateSellerStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || user.role !== "seller")
+      return res.status(404).json({ message: "Seller không tồn tại" });
+
+    const { status } = req.body;
+    const allowed = ["active", "violation", "locked", "inactive"];
+    if (!allowed.includes(status))
+      return res.status(400).json({ message: "Trạng thái không hợp lệ" });
+
+    user.sellerInfo.sellerStatus = status;
+    if (status === "locked") user.isBlocked = true;
+    const updated = await user.save();
+    res.json({ message: `Đã cập nhật trạng thái seller thành ${status}.`, sellerInfo: updated.sellerInfo });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Ghi nhận vi phạm seller — tự động khóa khi đủ 5 lần
+exports.recordSellerViolation = async (sellerId, reason = "", adminId = null) => {
+  const user = await User.findById(sellerId);
+  if (!user || user.role !== "seller") return null;
+
+  user.sellerInfo.violationCount = (user.sellerInfo.violationCount || 0) + 1;
+  user.sellerInfo.violationHistory.push({ reason, date: new Date(), recordedBy: adminId });
+
+  // Auto-lock khi đủ 5 vi phạm
+  if (user.sellerInfo.violationCount >= 5) {
+    user.sellerInfo.sellerStatus = "locked";
+    user.isBlocked = true;
+  } else {
+    user.sellerInfo.sellerStatus = "violation";
+  }
+
+  await user.save();
+  return user;
+};
+
+// ======================== ADMIN — GET ALL USERS ========================
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    const { role, sellerStatus } = req.query;
+    const filter = {};
+    if (role) filter.role = role;
+
+    let users = await User.find(filter).select("-password").sort({ createdAt: -1 });
+
+    // Lọc thêm theo sellerStatus nếu cần
+    if (sellerStatus) {
+      users = users.filter(u => u.sellerInfo?.sellerStatus === sellerStatus);
+    }
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.blockUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role === "admin") return res.status(400).json({ message: "Không thể khóa admin" });
+
+    user.isBlocked = !user.isBlocked;
+    const updated = await user.save();
+    res.json({ message: user.isBlocked ? "Đã khóa tài khoản" : "Đã mở khóa tài khoản", isBlocked: updated.isBlocked });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ======================== WISHLIST ========================
+
+exports.getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate("wishlist");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user.wishlist);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.toggleWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const productId = req.params.productId;
+    const idx = user.wishlist.findIndex(id => id.toString() === productId);
+    let inWishlist;
+    if (idx > -1) { user.wishlist.splice(idx, 1); inWishlist = false; }
+    else { user.wishlist.push(productId); inWishlist = true; }
+    await user.save();
+    res.json({ inWishlist, message: inWishlist ? "Đã thêm vào yêu thích" : "Đã xóa khỏi yêu thích" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ======================== ADDRESSES ========================
+
+exports.getAddresses = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("addresses");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user.addresses);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.addAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const { fullName, phone, province, district, ward, detail, isDefault } = req.body;
+    if (!fullName || !phone || !province || !district || !ward || !detail)
+      return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin địa chỉ" });
+    if (isDefault) user.addresses.forEach(a => { a.isDefault = false; });
+    user.addresses.push({ fullName, phone, province, district, ward, detail, isDefault: isDefault || user.addresses.length === 0 });
+    await user.save();
+    res.status(201).json(user.addresses);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.updateAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const addr = user.addresses.id(req.params.addressId);
+    if (!addr) return res.status(404).json({ message: "Địa chỉ không tồn tại" });
+    if (req.body.isDefault) user.addresses.forEach(a => { a.isDefault = false; });
+    Object.assign(addr, req.body);
+    await user.save();
+    res.json(user.addresses);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.deleteAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.addresses = user.addresses.filter(a => a._id.toString() !== req.params.addressId);
+    if (user.addresses.length > 0 && !user.addresses.some(a => a.isDefault))
+      user.addresses[0].isDefault = true;
+    await user.save();
+    res.json(user.addresses);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.setDefaultAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.addresses.forEach(a => { a.isDefault = a._id.toString() === req.params.addressId; });
+    await user.save();
+    res.json(user.addresses);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ======================== VOUCHERS (saved) ========================
+
+exports.getSavedVouchers = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("savedVouchers");
+    res.json(user.savedVouchers || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.toggleVoucher = async (req, res) => {
+  try {
+    const { voucherCode } = req.body;
+    if (!voucherCode) return res.status(400).json({ message: "Voucher code is required" });
+    const user = await User.findById(req.user._id);
+    const index = user.savedVouchers.indexOf(voucherCode);
+    if (index === -1) user.savedVouchers.push(voucherCode);
+    else user.savedVouchers.splice(index, 1);
+    await user.save();
+    res.json(user.savedVouchers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

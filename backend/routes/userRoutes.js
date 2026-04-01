@@ -1,0 +1,39 @@
+const express = require("express");
+const router = express.Router();
+const {
+  registerUser, loginUser, getUserProfile, updateUserProfile, becomeSeller,
+  getAllUsers, blockUser, approveSeller, rejectSeller, updateSellerStatus,
+  getWishlist, toggleWishlist,
+  getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
+  getSavedVouchers, toggleVoucher,
+} = require("../controllers/userController");
+const { protect, admin } = require("../middleware/authMiddleware");
+
+// Public
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+
+// Protected
+router.route("/profile").get(protect, getUserProfile).put(protect, updateUserProfile);
+router.put("/become-seller", protect, becomeSeller);
+
+// Wishlist
+router.get("/wishlist", protect, getWishlist);
+router.post("/wishlist/:productId", protect, toggleWishlist);
+
+// Addresses
+router.route("/addresses").get(protect, getAddresses).post(protect, addAddress);
+router.route("/addresses/:addressId").put(protect, updateAddress).delete(protect, deleteAddress);
+router.patch("/addresses/:addressId/default", protect, setDefaultAddress);
+
+// Vouchers (saved)
+router.route("/vouchers").get(protect, getSavedVouchers).post(protect, toggleVoucher);
+
+// Admin only
+router.get("/", protect, admin, getAllUsers);
+router.put("/:id/block", protect, admin, blockUser);
+router.put("/:id/approve-seller", protect, admin, approveSeller);
+router.put("/:id/reject-seller", protect, admin, rejectSeller);
+router.put("/:id/seller-status", protect, admin, updateSellerStatus);
+
+module.exports = router;
