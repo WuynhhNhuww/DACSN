@@ -43,7 +43,9 @@ exports.getProducts = async (req, res) => {
         ? { category: req.query.category }
         : {};
 
-    const criteria = { ...keyword, ...category, isDeleted: false, status: "approved" };
+    const sellerFilter = req.query.seller ? { seller: req.query.seller } : {};
+
+    const criteria = { ...keyword, ...category, ...sellerFilter, isDeleted: false, status: "approved" };
 
     const count = await Product.countDocuments(criteria);
     let query = Product.find(criteria).populate("seller", "name sellerInfo");
@@ -199,7 +201,6 @@ exports.rejectProduct = async (req, res) => {
 // Admin gỡ sản phẩm vi phạm (đã duyệt nhưng sau đó phát hiện vi phạm)
 exports.removeProduct = async (req, res) => {
   try {
-    const { recordViolation } = require("./userController");
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Sản phẩm không tồn tại" });
 

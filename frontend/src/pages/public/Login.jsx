@@ -1,17 +1,26 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { AuthContext } from "../../context/AuthContext";
 
 export default function Login() {
     const navigate = useNavigate();
-    const { login } = useContext(AuthContext) || {};
+    const { login, user } = useContext(AuthContext) || {};
     const [form, setForm] = useState({ email: "", password: "" });
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (token && user) {
+            if (user.role === "admin") navigate("/admin/dashboard");
+            else if (user.role === "seller") navigate("/seller/dashboard");
+            else navigate("/home");
+        }
+    }, [user]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -23,7 +32,7 @@ export default function Login() {
         setLoading(true);
         try {
             await login(form.email, form.password);
-            navigate("/");
+            // navigate handled by useEffect above after user loads
         } catch (err) {
             setError(err?.response?.data?.message || "Email hoặc mật khẩu không đúng.");
         } finally {
@@ -90,7 +99,7 @@ export default function Login() {
                     Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
                 </div>
                 <div className="authSwitch" style={{ marginTop: 8 }}>
-                    <Link to="/">← Quay về trang chủ</Link>
+                    <Link to="/home">← Quay về trang chủ</Link>
                 </div>
             </div>
         </div>

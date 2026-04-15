@@ -41,10 +41,22 @@ export default function ProductCreate() {
         }
     };
 
-    const updateImage = (i, val) => {
-        const imgs = [...form.images];
-        imgs[i] = val;
-        set("images", imgs);
+    const handleImageUpload = (i, event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            alert("Vui lòng chọn ảnh có kích thước dưới 2MB.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const imgs = [...form.images];
+            imgs[i] = reader.result;
+            set("images", imgs);
+        };
+        reader.readAsDataURL(file);
     };
 
     const inputStyle = { width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--as-border)", outline: "none", fontSize: "0.95rem", background: "rgba(0,0,0,0.01)", transition: "0.2s" };
@@ -83,7 +95,7 @@ export default function ProductCreate() {
 
                     <div className="as-card" style={{ padding: 32 }}>
                         <h3 style={{ margin: "0 0 24px 0", fontSize: "1.2rem", borderBottom: "1px solid var(--as-border)", paddingBottom: 16 }}>Hình ảnh sản phẩm</h3>
-                        <div style={{ marginBottom: 16, color: "var(--as-text-muted)", fontSize: "0.9rem" }}>URL hình ảnh (Tối đa 4 ảnh). Ảnh đầu tiên sẽ là ảnh bìa.</div>
+                        <div style={{ marginBottom: 16, color: "var(--as-text-muted)", fontSize: "0.9rem" }}>Upload hình ảnh từ máy (Tối đa 4 ảnh, tối đa 2MB/ảnh). Ảnh đầu tiên sẽ là ảnh bìa.</div>
                         <div style={{ display: "grid", gap: 16 }}>
                             {form.images.map((img, i) => (
                                 <div key={i} style={{ display: "flex", gap: 16 }}>
@@ -92,7 +104,8 @@ export default function ProductCreate() {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ display: "block", marginBottom: 6, fontSize: "0.85rem", fontWeight: 600 }}>Ảnh {i + 1} {i === 0 && "(Ảnh bìa)"}</label>
-                                        <input style={{ ...inputStyle, padding: "8px 12px" }} value={img} onChange={e => updateImage(i, e.target.value)} placeholder="https://..." />
+                                        <input type="file" accept="image/*" style={{ ...inputStyle, padding: "8px 12px", background: "white", cursor: "pointer" }} onChange={e => handleImageUpload(i, e)} />
+                                        {img && <div style={{ fontSize: "0.75rem", marginTop: 6, color: "var(--as-success-dark)", fontWeight: 500 }}>✓ Đã đính kèm ảnh</div>}
                                     </div>
                                 </div>
                             ))}

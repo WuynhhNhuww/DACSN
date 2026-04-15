@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaHistory } from "react-icons/fa";
+import { FaHistory, FaCheck, FaTimes } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -15,7 +15,7 @@ export default function AdminSellers() {
     const [historyModal, setHistoryModal] = useState({ show: false, history: [], sellerName: "" });
 
     useEffect(() => {
-        if (!user || user.role !== "admin") return navigate("/");
+        if (!user || user.role !== "admin") return navigate("/home");
         loadSellers();
     }, [user, navigate]);
 
@@ -45,9 +45,7 @@ export default function AdminSellers() {
     const handleReject = async () => {
         if (!rejectModal.reason.trim()) return alert("Vui lòng nhập lý do từ chối");
         try {
-            await axiosClient.put(`/api/users/${rejectModal.sellerId}/reject-seller`, {
-                reason: rejectModal.reason
-            });
+            await axiosClient.put(`/api/users/${rejectModal.sellerId}/reject-seller`, { reason: rejectModal.reason });
             alert("Đã từ chối gian hàng.");
             setRejectModal({ show: false, sellerId: null, reason: "" });
             loadSellers();
@@ -57,10 +55,9 @@ export default function AdminSellers() {
     };
 
     const handleStatusChange = async (id, newStatus) => {
-        if (!window.confirm(`Thay đổi trạng thái gian hàng thành "${newStatus}"?`)) return;
+        if (!window.confirm(`Thay đổi trạng thái thành "${newStatus}"?`)) return;
         try {
             await axiosClient.put(`/api/users/${id}/seller-status`, { status: newStatus });
-            alert("Cập nhật trạng thái thành công.");
             loadSellers();
         } catch (err) {
             alert(err.response?.data?.message || "Cập nhật thất bại.");
@@ -69,14 +66,23 @@ export default function AdminSellers() {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case "pending": return <span className="as-badge as-badge-warning">Chờ duyệt</span>;
-            case "active": return <span className="as-badge as-badge-success">Hoạt động</span>;
-            case "violation": return <span className="as-badge as-badge-danger">Vi phạm</span>;
-            case "locked": return <span className="as-badge as-badge-neutral" style={{ background: "#1f2937", color: "white" }}>Khóa</span>;
+            case "pending":  return <span className="as-badge as-badge-warning">Chờ duyệt</span>;
+            case "active":   return <span className="as-badge as-badge-success">Hoạt động</span>;
+            case "violation":return <span className="as-badge as-badge-danger">Vi phạm</span>;
+            case "locked":   return <span className="as-badge as-badge-dark">Đã khóa</span>;
             case "inactive": return <span className="as-badge as-badge-neutral">Tạm ngưng</span>;
-            default: return <span className="as-badge">{status}</span>;
+            default:         return <span className="as-badge">{status}</span>;
         }
     };
+
+    const FILTERS = [
+        { key: "all", label: "Tất cả" },
+        { key: "pending", label: "Chờ duyệt" },
+        { key: "active", label: "Hoạt động" },
+        { key: "violation", label: "Vi phạm" },
+        { key: "locked", label: "Đã khóa" },
+        { key: "inactive", label: "Tạm ngưng" },
+    ];
 
     const filteredSellers = filterStatus === "all"
         ? sellers
@@ -84,35 +90,43 @@ export default function AdminSellers() {
 
     return (
         <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-                <h1 className="as-page-title" style={{ marginBottom: 0 }}>Quản lý Gian hàng</h1>
+            <div className="as-page-header">
+                <div className="as-page-header-left">
+                    <h1 className="as-page-title">Gian hàng</h1>
+                    <p className="as-page-subtitle">
+                        <span style={{ fontWeight: 700, color: "var(--as-primary)" }}>{sellers.length}</span> gian hàng đã đăng ký
+                    </p>
+                </div>
             </div>
 
-            {/* Filter tabs */}
-            <div style={{ marginBottom: 24, display: "flex", gap: 12 }}>
-                {["all", "pending", "active", "violation", "locked", "inactive"].map(status => (
-                    <button
-                        key={status}
-                        className={`as-btn ${filterStatus === status ? "as-btn-primary" : "as-btn-outline"}`}
-                        onClick={() => setFilterStatus(status)}
-                        style={{ textTransform: "capitalize", padding: "8px 16px", borderRadius: 20 }}
-                    >
-                        {status === "all" ? "Tất cả" : status}
-                    </button>
-                ))}
+            {/* Filter Tabs */}
+            <div className="as-filter-bar">
+                {FILTERS.map(f => {
+                    const cnt = f.key === "all" ? sellers.length : sellers.filter(s => s.sellerInfo?.sellerStatus === f.key).length;
+                    return (
+                        <button
+                            key={f.key}
+                            className={`as-filter-tab ${filterStatus === f.key ? "active" : ""}`}
+                            onClick={() => setFilterStatus(f.key)}
+                        >
+                            {f.label}
+                            <span className="count">{cnt}</span>
+                        </button>
+                    );
+                })}
             </div>
 
             <div className="as-table-wrapper">
                 {loading ? (
-                    <div style={{ padding: 40, textAlign: "center" }}>Đang tải dữ liệu...</div>
+                    <div className="as-table-loading"><div className="as-spinner" /><span>Đang tải dữ liệu...</span></div>
                 ) : filteredSellers.length === 0 ? (
-                    <div style={{ padding: 40, textAlign: "center", color: "var(--as-text-muted)" }}>Không có gian hàng nào phù hợp</div>
+                    <div className="as-table-empty">Không có gian hàng nào phù hợp</div>
                 ) : (
                     <table className="as-table">
                         <thead>
                             <tr>
                                 <th>Gian hàng</th>
-                                <th>Email chủ thẻ</th>
+                                <th>Email</th>
                                 <th>Uy tín</th>
                                 <th>Vi phạm</th>
                                 <th>Trạng thái</th>
@@ -126,30 +140,37 @@ export default function AdminSellers() {
                                 return (
                                     <tr key={s._id}>
                                         <td>
-                                            <div style={{ fontWeight: 600 }}>{info.shopName || s.name}</div>
-                                            <div style={{ fontSize: "0.85rem", color: "var(--as-text-muted)", marginTop: 4 }}>
-                                                {info.phone} • {info.address}
+                                            <div style={{ fontWeight: 700, color: "var(--as-text)", fontSize: "0.95rem" }}>
+                                                {info.shopName || s.name}
+                                            </div>
+                                            <div className="as-text-sm as-text-muted-c" style={{ marginTop: 3 }}>
+                                                {info.phone}{info.phone && info.address ? " · " : ""}{info.address}
                                             </div>
                                         </td>
-                                        <td style={{ color: "var(--as-text-muted)" }}>{s.email}</td>
+                                        <td style={{ color: "var(--as-text-muted)", fontSize: "0.875rem" }}>{s.email}</td>
                                         <td>
-                                            <span style={{ fontWeight: 600, color: info.reputationScore >= 4 ? "var(--as-success)" : "var(--as-danger)" }}>
-                                                {info.reputationScore || 0}/5
-                                            </span>
+                                            <div style={{
+                                                display: "inline-flex", alignItems: "center", gap: 5,
+                                                fontWeight: 700, fontSize: "0.9rem",
+                                                color: info.reputationScore >= 4 ? "var(--as-success-dark)" : info.reputationScore >= 2 ? "var(--as-warning)" : "var(--as-danger-dark)"
+                                            }}>
+                                                ★ {info.reputationScore || 0}
+                                                <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "var(--as-text-muted)" }}>/5</span>
+                                            </div>
                                         </td>
                                         <td>
                                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                 <span className={`as-badge ${info.violationCount > 0 ? "as-badge-danger" : "as-badge-neutral"}`}>
-                                                    {info.violationCount || 0}
+                                                    {info.violationCount || 0} vi phạm
                                                 </span>
-                                                {(info.violationHistory?.length > 0) && (
+                                                {info.violationHistory?.length > 0 && (
                                                     <button
-                                                        className="as-btn-outline"
+                                                        className="as-btn-ghost as-btn-icon"
                                                         title="Xem lịch sử vi phạm"
                                                         onClick={() => setHistoryModal({ show: true, history: info.violationHistory, sellerName: info.shopName })}
-                                                        style={{ padding: "4px 8px", borderRadius: 8, border: "none", background: "rgba(0,0,0,0.05)" }}
+                                                        style={{ padding: "5px", borderRadius: 8, border: "1px solid var(--as-border)", background: "var(--as-bg)" }}
                                                     >
-                                                        <FaHistory />
+                                                        <FaHistory size={12} style={{ color: "var(--as-text-muted)" }} />
                                                     </button>
                                                 )}
                                             </div>
@@ -157,38 +178,39 @@ export default function AdminSellers() {
                                         <td>
                                             {getStatusBadge(info.sellerStatus)}
                                             {info.sellerStatus === "pending" && info.rejectedReason && (
-                                                <div style={{ fontSize: "0.8rem", color: "var(--as-danger)", marginTop: 6, maxWidth: 180, lineHeight: 1.4 }}>
+                                                <div style={{ fontSize: "0.78rem", color: "var(--as-danger-dark)", marginTop: 5, lineHeight: 1.4 }}>
                                                     Lý do: {info.rejectedReason}
                                                 </div>
                                             )}
                                         </td>
-                                        <td style={{ fontSize: "0.85rem", color: "var(--as-text-muted)" }}>
+                                        <td style={{ fontSize: "0.82rem", color: "var(--as-text-muted)" }}>
                                             {new Date(s.createdAt).toLocaleDateString("vi-VN")}
                                         </td>
                                         <td>
                                             {info.sellerStatus === "pending" ? (
-                                                <div style={{ display: "flex", gap: 8 }}>
-                                                    <button className="as-btn as-btn-primary" onClick={() => handleApprove(s._id)} style={{ padding: "6px 12px", fontSize: "0.85rem" }}>
-                                                        Duyệt
+                                                <div style={{ display: "flex", gap: 6 }}>
+                                                    <button className="as-btn as-btn-sm as-btn-success" onClick={() => handleApprove(s._id)}>
+                                                        <FaCheck size={10} /> Duyệt
                                                     </button>
                                                     <button
-                                                        className="as-btn as-btn-outline"
+                                                        className="as-btn as-btn-sm as-btn-outline"
+                                                        style={{ borderColor: "var(--as-danger)", color: "var(--as-danger-dark)" }}
                                                         onClick={() => setRejectModal({ show: true, sellerId: s._id, reason: "" })}
-                                                        style={{ padding: "6px 12px", fontSize: "0.85rem", borderColor: "var(--as-danger)", color: "var(--as-danger)" }}
                                                     >
-                                                        Từ chối
+                                                        <FaTimes size={10} /> Từ chối
                                                     </button>
                                                 </div>
                                             ) : (
                                                 <select
                                                     value={info.sellerStatus}
                                                     onChange={(e) => handleStatusChange(s._id, e.target.value)}
-                                                    style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--as-border)", fontSize: "0.9rem", background: "white", outline: "none", cursor: "pointer" }}
+                                                    className="as-select"
+                                                    style={{ width: "auto", minWidth: 160, padding: "7px 32px 7px 12px" }}
                                                 >
-                                                    <option value="active">Active (Hoạt động)</option>
-                                                    <option value="violation">Violation (Vi phạm)</option>
-                                                    <option value="inactive">Inactive (Tạm ngưng)</option>
-                                                    <option value="locked">Locked (Khóa vĩnh viễn)</option>
+                                                    <option value="active">Hoạt động</option>
+                                                    <option value="violation">Vi phạm</option>
+                                                    <option value="inactive">Tạm ngưng</option>
+                                                    <option value="locked">Khóa vĩnh viễn</option>
                                                 </select>
                                             )}
                                         </td>
@@ -200,54 +222,54 @@ export default function AdminSellers() {
                 )}
             </div>
 
-            {/* Modal Từ Chối */}
+            {/* Reject Modal */}
             {rejectModal.show && (
                 <div className="modal-overlay">
-                    <div className="as-card" style={{ maxWidth: 450, width: "100%", padding: 32 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-                            <h3 style={{ margin: 0, fontSize: "1.25rem", color: "var(--as-danger)" }}>Từ chối gian hàng</h3>
-                            <button style={{ border: "none", background: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--as-text-muted)" }} onClick={() => setRejectModal({ show: false, sellerId: null, reason: "" })}>&times;</button>
+                    <div className="as-modal" style={{ maxWidth: 460 }}>
+                        <div className="as-modal-header">
+                            <h3 className="as-modal-title" style={{ color: "var(--as-danger-dark)" }}>Từ chối gian hàng</h3>
+                            <button className="as-modal-close" onClick={() => setRejectModal({ show: false, sellerId: null, reason: "" })}>×</button>
                         </div>
-                        <div style={{ marginBottom: 20 }}>
-                            <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>Lý do từ chối <span style={{ color: "red" }}>*</span></label>
+                        <div className="as-form-group">
+                            <label className="as-form-label">Lý do từ chối <span className="required">*</span></label>
                             <textarea
-                                style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid var(--as-border)", outline: "none", resize: "vertical", fontSize: "0.95rem" }}
+                                className="as-textarea"
                                 rows="4"
-                                placeholder="Nhập lý do từ chối để seller có thể sửa đổi bổ sung..."
+                                placeholder="Nhập lý do để seller có thể sửa đổi bổ sung..."
                                 value={rejectModal.reason}
                                 onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
-                            ></textarea>
+                            />
                         </div>
-                        <button className="as-btn as-btn-danger" style={{ width: "100%" }} onClick={handleReject}>
-                            Xác nhận Từ chối
-                        </button>
+                        <div className="as-modal-footer">
+                            <button className="as-btn as-btn-outline" onClick={() => setRejectModal({ show: false, sellerId: null, reason: "" })}>Hủy</button>
+                            <button className="as-btn as-btn-danger" onClick={handleReject}>Xác nhận từ chối</button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Modal Lịch sử Vi phạm */}
+            {/* Violation History Modal */}
             {historyModal.show && (
                 <div className="modal-overlay">
-                    <div className="as-card" style={{ maxWidth: 500, width: "100%", padding: 32 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-                            <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Lịch sử vi phạm - {historyModal.sellerName}</h3>
-                            <button style={{ border: "none", background: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--as-text-muted)" }} onClick={() => setHistoryModal({ show: false, history: [], sellerName: "" })}>&times;</button>
+                    <div className="as-modal" style={{ maxWidth: 520 }}>
+                        <div className="as-modal-header">
+                            <h3 className="as-modal-title">Lịch sử vi phạm · {historyModal.sellerName}</h3>
+                            <button className="as-modal-close" onClick={() => setHistoryModal({ show: false, history: [], sellerName: "" })}>×</button>
                         </div>
-                        <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                        <div style={{ maxHeight: 400, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                             {historyModal.history.length === 0 ? (
-                                <p style={{ color: "var(--as-text-muted)", textAlign: "center" }}>Chưa có vi phạm nào.</p>
-                            ) : (
-                                <ul style={{ padding: 0, margin: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
-                                    {historyModal.history.map((h, i) => (
-                                        <li key={i} style={{ padding: 16, background: "rgba(0,0,0,0.02)", borderRadius: 12, border: "1px solid var(--as-border)" }}>
-                                            <div style={{ color: "var(--as-text-muted)", fontSize: "0.85rem", marginBottom: 4 }}>
-                                                {new Date(h.date).toLocaleString("vi-VN")}
-                                            </div>
-                                            <div style={{ color: "var(--as-text)", fontWeight: 500 }}>{h.reason}</div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
+                                <p style={{ color: "var(--as-text-muted)", textAlign: "center", padding: "24px 0" }}>Chưa có vi phạm nào.</p>
+                            ) : historyModal.history.map((h, i) => (
+                                <div key={i} style={{
+                                    padding: 14, background: "var(--as-bg)", borderRadius: 12,
+                                    border: "1px solid var(--as-border)", borderLeft: "3px solid var(--as-danger)"
+                                }}>
+                                    <div style={{ fontSize: "0.75rem", color: "var(--as-text-muted)", marginBottom: 5, fontWeight: 500 }}>
+                                        {new Date(h.date).toLocaleString("vi-VN")}
+                                    </div>
+                                    <div style={{ color: "var(--as-text)", fontWeight: 500, fontSize: "0.9rem" }}>{h.reason}</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

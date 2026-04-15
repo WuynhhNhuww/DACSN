@@ -55,6 +55,11 @@ const userSchema = mongoose.Schema(
       index: true,
     },
 
+    // ===== PROFILE EXTRA =====
+    phone: { type: String, default: "" },
+    gender: { type: String, enum: ["male", "female", "other", ""], default: "" },
+    dob: { type: Date, default: null },
+
     // ===== SELLER INFO =====
     sellerInfo: {
       shopName: { type: String, default: "" },

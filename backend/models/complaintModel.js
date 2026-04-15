@@ -13,7 +13,11 @@ const complaintSchema = new mongoose.Schema(
     // ===== SELLER RESPONSE =====
     // Khiếu nại phải chuyển seller xử lý trước
     sellerResponse: { type: String, default: "" },
+    proposedRefundAmount: { type: Number, default: 0 },
     sellerRespondedAt: { type: Date, default: null },
+
+    // ===== BUYER DECISION =====
+    buyerAccepted: { type: Boolean, default: null },
 
     // ===== ESCALATION =====
     // Nếu seller không xử lý hoặc không thỏa đáng → admin can thiệp

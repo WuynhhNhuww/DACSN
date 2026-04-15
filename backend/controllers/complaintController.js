@@ -105,10 +105,11 @@ exports.sellerRespond = async (req, res) => {
     if (complaint.status !== "open" && complaint.status !== "seller_processing")
       return res.status(400).json({ message: "Không thể phản hồi khiếu nại ở trạng thái này" });
 
-    const { response } = req.body;
+    const { response, proposedRefundAmount } = req.body;
     if (!response) return res.status(400).json({ message: "Nội dung phản hồi là bắt buộc" });
 
     complaint.sellerResponse = response;
+    complaint.proposedRefundAmount = Number(proposedRefundAmount) || 0;
     complaint.sellerRespondedAt = new Date();
     complaint.status = "seller_processing";
 
@@ -137,6 +138,39 @@ exports.escalateComplaint = async (req, res) => {
 
     const updated = await complaint.save();
     res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// PUT /api/complaints/:id/buyer-respond — Buyer đồng ý hoặc từ chối mức đền bù
+exports.buyerRespondProposal = async (req, res) => {
+  try {
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) return res.status(404).json({ message: "Khiếu nại không tồn tại" });
+
+    if (complaint.buyer.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: "Chỉ người mua mới quyết định được" });
+
+    if (complaint.status !== "seller_processing")
+      return res.status(400).json({ message: "Không thể thực hiện khi Người Bán chưa phản hồi" });
+
+    const { accepted } = req.body;
+
+    complaint.buyerAccepted = Boolean(accepted);
+    if (accepted) {
+      complaint.status = "resolved";
+      complaint.resolution = "buyer_wins";
+      complaint.refundAmount = complaint.proposedRefundAmount;
+      complaint.resolvedAt = new Date();
+    } else {
+      complaint.status = "escalated";
+      complaint.escalatedToAdmin = true;
+      complaint.escalatedAt = new Date();
+    }
+
+    await complaint.save();
+    res.json(complaint);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

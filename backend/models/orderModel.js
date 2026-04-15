@@ -117,6 +117,8 @@ const orderSchema = new mongoose.Schema(
         "completed",
         "cancelled",
         "delivery_failed",
+        "return_requested",
+        "returned",
       ],
       default: "pending_payment",
       index: true,
@@ -125,7 +127,7 @@ const orderSchema = new mongoose.Schema(
     // 💳 Thanh toán
     paymentMethod: {
       type: String,
-      enum: ["COD", "ONLINE"],
+      enum: ["COD", "ONLINE", "WALLET", "VNPAY", "MOMO"],
       default: "COD",
     },
 
@@ -151,6 +153,16 @@ const orderSchema = new mongoose.Schema(
     },
 
     // 🚚 Giao hàng
+    shippingProvider: {
+      type: String,
+      default: "",
+    },
+
+    trackingCode: {
+      type: String,
+      default: "",
+    },
+
     shippedAt: {
       type: Date,
       default: null,
@@ -174,6 +186,18 @@ const orderSchema = new mongoose.Schema(
 
     confirmedReceivedAt: {
       type: Date,
+      default: null,
+    },
+
+    // ⚖️ Tranh chấp & Trả hàng
+    isDisputed: {
+      type: Boolean,
+      default: false,
+    },
+
+    returnRequestRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ReturnRequest",
       default: null,
     },
   },

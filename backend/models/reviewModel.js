@@ -13,6 +13,9 @@ const reviewSchema = new mongoose.Schema(
 
     images: { type: [String], default: [] },
 
+    sellerReply: { type: String, default: "" },
+    sellerReplyAt: { type: Date, default: null },
+
     isHidden: { type: Boolean, default: false }, // admin/seller report -> ẩn
   },
   { timestamps: true }

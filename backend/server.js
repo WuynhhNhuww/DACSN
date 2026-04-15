@@ -20,12 +20,13 @@ const sellerRoutes = require("./routes/sellerRoutes");
 const promotionRoutes = require("./routes/promotionRoutes");
 const promotionItemRoutes = require("./routes/promotionItemRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const voucherRoutes = require("./routes/voucherRoutes");
 const bannerRoutes = require("./routes/bannerRoutes");
 const complaintRoutes = require("./routes/complaintRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-
+const walletRoutes = require("./routes/walletRoutes");
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
@@ -34,12 +35,13 @@ app.use("/api/seller", sellerRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/promotion-items", promotionItemRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/vouchers", voucherRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use("/api/wallets", walletRoutes);
 app.get("/", (req, res) => res.send("Shopee Mini API Running..."));
 
 // 404

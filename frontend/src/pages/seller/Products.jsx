@@ -20,17 +20,16 @@ export default function SellerProducts() {
     }, [user]);
 
     const load = () => {
-        axiosClient.get("/api/products")
+        axiosClient.get("/api/products/seller/my")
             .then(res => {
-                const mine = (res.data || []).filter(p => p.seller === user?._id || p.seller?._id === user?._id);
-                setProducts(mine);
+                setProducts(res.data || []);
             })
             .catch(() => setProducts([]))
             .finally(() => setLoading(false));
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Xác nhận xóa sản phẩm?")) return;
+        if (!window.confirm("Xác nhận gỡ / ẩn sản phẩm này?")) return;
         setDeleting(id);
         try {
             await axiosClient.delete(`/api/products/${id}`);
@@ -148,7 +147,7 @@ export default function SellerProducts() {
                                                 style={{ padding: 8, borderColor: "var(--as-danger)", color: "var(--as-danger)" }}
                                                 onClick={() => handleDelete(p._id)}
                                                 disabled={deleting === p._id}
-                                                title="Xóa"
+                                                title="Gỡ / Ẩn"
                                             >
                                                 <FaTrash />
                                             </button>

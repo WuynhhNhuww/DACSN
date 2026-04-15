@@ -92,7 +92,7 @@ export default function ShopeeHeader() {
                 </>
               ) : (
                 <span style={{ opacity: .9, fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
-                  <FaUserCircle size={16} /> {user.name}
+                  <FaUserCircle size={16} /> Xin chào, {user.name}
                 </span>
               )}
             </div>
@@ -105,7 +105,7 @@ export default function ShopeeHeader() {
         <div className="container">
           <div className="headerMain">
             {/* LOGO */}
-            <Link to="/" className="logo">
+            <Link to="/home" className="logo">
               <div className="logoMark">W</div>
               <span>WPN STORE</span>
             </Link>
@@ -146,36 +146,36 @@ export default function ShopeeHeader() {
                   >
                     <FaUserCircle size={18} />
                     <span style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {user.name}
+                      Xin chào, {user.name}
                     </span>
                     <FaChevronDown size={11} />
                   </button>
                   {showDropdown && (
                     <div className="headerDropdown" style={{ borderRadius: 16, overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
                       <Link to={roleDashboard()} onClick={() => setShowDropdown(false)}>
-                        <FaUser style={{ marginRight: 8 }} /> My Account
+                        <FaUser style={{ marginRight: 8 }} /> Tài khoản của tôi
                       </Link>
                       {user.role === "seller" && (
                         <Link to="/seller/dashboard" onClick={() => setShowDropdown(false)}>
-                          <FaStore style={{ marginRight: 8 }} /> Seller Center
+                          <FaStore style={{ marginRight: 8 }} /> Kênh Người Bán
                         </Link>
                       )}
                       <Link to="/buyer/orders" onClick={() => setShowDropdown(false)}>
-                        <FaBox style={{ marginRight: 8 }} /> My Orders
+                        <FaBox style={{ marginRight: 8 }} /> Đơn mua của tôi
                       </Link>
                       <Link to="/buyer/wishlist" onClick={() => setShowDropdown(false)}>
-                        <FaHeart style={{ marginRight: 8, color: "var(--accent)" }} /> My Wishlist
+                        <FaHeart style={{ marginRight: 8, color: "var(--accent)" }} /> Yêu thích
                       </Link>
                       <div className="divider" style={{ margin: 0 }} />
                       <button onClick={handleLogout} style={{ color: "var(--accent)" }}>
-                        <FaSignOutAlt style={{ marginRight: 8 }} /> Log Out
+                        <FaSignOutAlt style={{ marginRight: 8 }} /> Đăng xuất
                       </button>
                     </div>
                   )}
                 </div>
               ) : (
                 <Link to="/login" className="headerUserBtn">
-                  <FaUserCircle size={18} /> Login
+                  <FaUserCircle size={18} /> Đăng nhập
                 </Link>
               )}
             </div>

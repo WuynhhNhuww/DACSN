@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaShoppingCart } from "react-icons/fa";
+import { FaTrash, FaShoppingCart, FaStore } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 import ShopeeFooter from "../../components/ShopeeFooter";
@@ -44,14 +44,14 @@ export default function Cart() {
 
   useEffect(() => {
     if (user && (user.role === "seller" || user.role === "admin")) {
-      navigate("/");
+      navigate("/home");
       return;
     }
     load();
   }, [user]);
 
   const saveLocal = (newItems) => {
-    localStorage.setItem("modern_store_cart", JSON.stringify(newItems));
+    localStorage.setItem("wpn_store_cart", JSON.stringify(newItems));
     window.dispatchEvent(new Event("cart:updated"));
   };
 
@@ -193,26 +193,26 @@ export default function Cart() {
 
             <div className="cartRight">
               <div className="cartSummary" style={{ background: "#fff", padding: 32, borderRadius: 24, boxShadow: "var(--shadow-sm)", position: "sticky", top: 120 }}>
-                <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 24 }}>Order Summary</h3>
+                <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 24 }}>Tóm tắt đơn hàng</h3>
 
                 <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 15 }}>
-                  <span style={{ color: "var(--text-light)" }}>Subtotal ({selectedItems.reduce((s, it) => s + it.qty, 0)} items)</span>
+                  <span style={{ color: "var(--text-light)" }}>Tổng phụ ({selectedItems.reduce((s, it) => s + it.qty, 0)} SP)</span>
                   <span style={{ fontWeight: 600 }}>{fmt(subtotal)}</span>
                 </div>
                 <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 15 }}>
-                  <span style={{ color: "var(--text-light)" }}>Delivery Fee</span>
+                  <span style={{ color: "var(--text-light)" }}>Phí vận chuyển</span>
                   <span style={{ fontWeight: 600, color: shippingFee === 0 ? "#10b981" : "var(--text)" }}>
-                    {shippingFee === 0 ? "FREE" : fmt(shippingFee)}
+                    {shippingFee === 0 ? "MIỄN PHÍ" : fmt(shippingFee)}
                   </span>
                 </div>
                 {shippingFee > 0 && (
                   <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500, marginBottom: 20, background: "var(--primary-light)", padding: "8px 12px", borderRadius: 8 }}>
-                    Add {fmt(500000 - subtotal)} more for FREE delivery
+                    Mua thêm {fmt(500000 - subtotal)} để được MIỄN PHÍ vận chuyển
                   </div>
                 )}
                 <div className="sumDivider" style={{ height: 1, background: "var(--line)", margin: "24px 0" }} />
                 <div className="sumRow sumTotal" style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
-                  <span style={{ fontWeight: 800, fontSize: 18 }}>Total</span>
+                  <span style={{ fontWeight: 800, fontSize: 18 }}>Tổng cộng</span>
                   <span style={{ fontWeight: 800, fontSize: 24, color: "var(--primary)" }}>{fmt(total)}</span>
                 </div>
                 <button
@@ -226,10 +226,10 @@ export default function Cart() {
                   }}
                   disabled={selected.length === 0}
                 >
-                  Proceed to Checkout
+                  Tiến hành Thanh toán
                 </button>
                 <div className="sumHint" style={{ textAlign: "center", marginTop: 20, fontSize: 12, color: "var(--text-lighter)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  Secure Payment Guaranteed
+                  Thanh toán an toàn bảo mật
                 </div>
               </div>
             </div>

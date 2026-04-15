@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaMoneyBillWave, FaClipboardList, FaBox, FaWarehouse, FaArrowUp, FaArrowDown } from "react-icons/fa";
+import { FaMoneyBillWave, FaClipboardList, FaBox, FaWarehouse, FaArrowUp, FaArrowDown, FaChartLine } from "react-icons/fa";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -21,10 +22,10 @@ export default function SellerDashboard() {
     }, [user]);
 
     const stats = [
-        { icon: <FaMoneyBillWave />, label: "Doanh thu", val: fmt(data?.totalRevenue), color: "var(--as-success)", bg: "rgba(16, 185, 129, 0.1)" },
-        { icon: <FaClipboardList />, label: "Tổng đơn hàng", val: data?.totalOrders ?? 0, color: "var(--as-info)", bg: "rgba(59, 130, 246, 0.1)" },
-        { icon: <FaBox />, label: "Sản phẩm", val: data?.totalProducts ?? 0, color: "var(--as-primary)", bg: "rgba(79, 70, 229, 0.1)" },
-        { icon: <FaWarehouse />, label: "Tồn kho", val: data?.totalStockRemaining ?? 0, color: "var(--as-warning)", bg: "rgba(245, 158, 11, 0.1)" },
+        { icon: <FaMoneyBillWave />, label: "Doanh thu (Đã giao & HT)", val: fmt(data?.totalRevenue), color: "var(--as-success)", bg: "rgba(16, 185, 129, 0.1)", path: "/seller/orders" },
+        { icon: <FaClipboardList />, label: "Tổng đơn hàng", val: data?.totalOrders ?? 0, color: "var(--as-info)", bg: "rgba(59, 130, 246, 0.1)", path: "/seller/orders" },
+        { icon: <FaArrowDown />, label: "Tỷ lệ Hoàn/Hủy", val: `${data?.returnRate || 0}%`, color: "var(--as-danger)", bg: "rgba(244, 63, 94, 0.1)", path: "/seller/orders" },
+        { icon: <FaBox />, label: "Sản phẩm", val: data?.totalProducts ?? 0, color: "var(--as-primary)", bg: "rgba(79, 70, 229, 0.1)", path: "/seller/products" },
     ];
 
     return (
@@ -40,16 +41,45 @@ export default function SellerDashboard() {
             ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24, marginBottom: 32 }}>
                     {stats.map(s => (
-                        <div key={s.label} className="as-card" style={{ display: "flex", alignItems: "center", gap: 20, padding: 24 }}>
+                        <div key={s.label} className="as-card" style={{ display: "flex", alignItems: "center", gap: 20, padding: 24, cursor: "pointer", transition: "transform 0.2s" }} onClick={() => navigate(s.path)} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-4px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
                             <div style={{ width: 56, height: 56, borderRadius: 16, background: s.bg, color: s.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem", flexShrink: 0 }}>
                                 {s.icon}
                             </div>
-                            <div>
+                            <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--as-text)", marginBottom: 4 }}>{s.val}</div>
-                                <div style={{ fontSize: "0.9rem", color: "var(--as-text-muted)", fontWeight: 500 }}>{s.label}</div>
+                                <div style={{ fontSize: "0.9rem", color: "var(--as-text-muted)", fontWeight: 500, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    {s.label}
+                                    {s.label === "Doanh thu" && data?.revenueGrowth && (
+                                        <span style={{ fontSize: "0.75rem", padding: "2px 6px", borderRadius: 4, background: data.revenueGrowth >= 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(244, 63, 94, 0.1)", color: data.revenueGrowth >= 0 ? "var(--as-success)" : "var(--as-danger)" }}>
+                                            {data.revenueGrowth >= 0 ? "▲" : "▼"} {Math.abs(data.revenueGrowth)}%
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {!loading && data?.monthlyRevenue && (
+                <div className="as-card" style={{ padding: 24, marginBottom: 32 }}>
+                    <h3 style={{ margin: "0 0 20px 0", fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8, color: "var(--as-text)" }}>
+                        <FaChartLine style={{ color: "var(--as-primary)" }} /> Phân tích doanh thu (6 tháng qua)
+                    </h3>
+                    <div style={{ width: "100%", height: 350 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={data.monthlyRevenue} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 13 }} tickLine={false} axisLine={false} />
+                                <YAxis tickFormatter={(val) => `₫${(val/1000000).toFixed(0)}M`} tick={{ fill: "#64748b", fontSize: 13 }} tickLine={false} axisLine={false} />
+                                <Tooltip
+                                    formatter={(value) => [fmt(value), "Doanh thu"]}
+                                    contentStyle={{ borderRadius: 12, border: "none", boxShadow: "var(--as-shadow-lg)" }}
+                                />
+                                <Line type="monotone" dataKey="revenue" stroke="var(--as-primary)" strokeWidth={3} activeDot={{ r: 8, strokeWidth: 0, fill: "var(--as-primary)" }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             )}
 

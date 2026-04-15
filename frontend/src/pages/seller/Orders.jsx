@@ -1,5 +1,6 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { FaCommentDots, FaTimes, FaPaperPlane } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -32,13 +33,47 @@ export default function SellerOrders() {
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(null);
 
+    // Chat states
+    const [chatModal, setChatModal] = useState(null); // { buyerId, buyerName }
+    const [messages, setMessages] = useState([]);
+    const [newMsg, setNewMsg] = useState("");
+    const messagesEndRef = useRef(null);
+
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
-        axiosClient.get("/api/orders/my")
+        axiosClient.get(user.role === "admin" ? "/api/orders" : "/api/orders/seller-orders")
             .then(res => setOrders(res.data || []))
             .catch(() => setOrders([]))
             .finally(() => setLoading(false));
     }, [user]);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        if (chatModal) {
+            axiosClient.get(`/api/chat/${chatModal.buyerId}`)
+                .then(res => { setMessages(res.data || []); scrollToBottom(); })
+                .catch(console.error);
+        }
+    }, [chatModal]);
+
+    const handleSendMessage = async (e) => {
+        e?.preventDefault();
+        if (!newMsg.trim() || !chatModal) return;
+        try {
+            const res = await axiosClient.post("/api/chat", {
+                receiverId: chatModal.buyerId,
+                text: newMsg
+            });
+            setMessages(prev => [...prev, res.data]);
+            setNewMsg("");
+            scrollToBottom();
+        } catch (err) {
+            console.error("Gửi tin nhắn thất bại", err);
+        }
+    };
 
     const updateStatus = async (orderId, status) => {
         setUpdating(orderId);
@@ -111,17 +146,29 @@ export default function SellerOrders() {
                                         </td>
                                         <td><span className={`as-badge ${st.cls}`}>{st.label}</span></td>
                                         <td>
-                                            <select
-                                                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--as-border)", outline: "none", background: ["completed", "cancelled"].includes(order.status) ? "rgba(0,0,0,0.05)" : "white", cursor: ["completed", "cancelled", "delivered", "delivery_failed"].includes(order.status) ? "not-allowed" : "pointer", fontWeight: 600, color: "var(--as-text)" }}
-                                                value={order.status}
-                                                disabled={updating === order._id || ["completed", "cancelled", "delivered", "delivery_failed"].includes(order.status)}
-                                                onChange={e => updateStatus(order._id, e.target.value)}
-                                            >
-                                                <option value={order.status} disabled>{st.label}</option>
-                                                {STATUS_OPTS.filter(s => s.val !== order.status).map(s => (
-                                                    <option key={s.val} value={s.val}>{s.label}</option>
-                                                ))}
-                                            </select>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                <select
+                                                    style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--as-border)", outline: "none", background: ["completed", "cancelled"].includes(order.status) ? "rgba(0,0,0,0.05)" : "white", cursor: ["completed", "cancelled", "delivered", "delivery_failed"].includes(order.status) ? "not-allowed" : "pointer", fontWeight: 600, color: "var(--as-text)", width: "100%" }}
+                                                    value={order.status}
+                                                    disabled={updating === order._id || ["completed", "cancelled", "delivered", "delivery_failed"].includes(order.status)}
+                                                    onChange={e => updateStatus(order._id, e.target.value)}
+                                                >
+                                                    <option value={order.status} disabled>{st.label}</option>
+                                                    {STATUS_OPTS.filter(s => s.val !== order.status).map(s => (
+                                                        <option key={s.val} value={s.val}>{s.label}</option>
+                                                    ))}
+                                                </select>
+
+                                                {user.role === "seller" && order.buyer && (
+                                                    <button
+                                                        className="as-btn as-btn-outline"
+                                                        style={{ padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem", width: "100%" }}
+                                                        onClick={() => setChatModal({ buyerId: order.buyer._id || order.buyer, buyerName: order.shippingAddress?.fullName || "Khách hàng" })}
+                                                    >
+                                                        <FaCommentDots /> Nhắn tin
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -130,6 +177,53 @@ export default function SellerOrders() {
                     </table>
                 )}
             </div>
+
+            {/* Chat Modal */}
+            {chatModal && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+                    <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 450, display: "flex", flexDirection: "column", height: 500, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+                        <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--as-border)", background: "var(--as-primary)", color: "white", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                            <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 10 }}>
+                                <FaCommentDots size={18} /> Chat với {chatModal.buyerName}
+                            </div>
+                            <button onClick={() => setChatModal(null)} style={{ background: "none", border: "none", color: "white", cursor: "pointer", padding: 4 }}><FaTimes size={16} /></button>
+                        </div>
+
+                        <div style={{ flex: 1, padding: 20, overflowY: "auto", background: "#f8fafc", display: "flex", flexDirection: "column", gap: 12 }}>
+                            {messages.length === 0 ? (
+                                <div style={{ margin: "auto", color: "var(--as-text-muted)", fontSize: "0.9rem", textAlign: "center" }}>Chưa có tin nhắn nào.<br />Hãy gửi tin nhắn đầu tiên!</div>
+                            ) : (
+                                messages.map(m => {
+                                    const isMe = m.sender === user._id;
+                                    return (
+                                        <div key={m._id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                                            <div style={{ maxWidth: "75%", padding: "10px 14px", borderRadius: 16, background: isMe ? "var(--as-primary)" : "white", color: isMe ? "white" : "var(--as-text)", border: isMe ? "none" : "1px solid var(--as-border)", fontSize: "0.95rem", lineHeight: 1.4, borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                                                {m.text}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        <div style={{ padding: 16, borderTop: "1px solid var(--as-border)", background: "white", borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+                            <form onSubmit={handleSendMessage} style={{ display: "flex", gap: 12 }}>
+                                <input
+                                    style={{ flex: 1, padding: "10px 16px", borderRadius: 20, border: "1px solid var(--as-border)", outline: "none", background: "rgba(0,0,0,0.02)" }}
+                                    placeholder="Nhập tin nhắn..."
+                                    value={newMsg}
+                                    onChange={e => setNewMsg(e.target.value)}
+                                    autoFocus
+                                />
+                                <button type="submit" className="as-btn as-btn-primary" style={{ padding: "0 20px", borderRadius: 20, display: "flex", alignItems: "center", gap: 8 }} disabled={!newMsg.trim()}>
+                                    <FaPaperPlane />
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

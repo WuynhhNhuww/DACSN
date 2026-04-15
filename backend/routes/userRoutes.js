@@ -5,11 +5,12 @@ const {
   getAllUsers, blockUser, approveSeller, rejectSeller, updateSellerStatus,
   getWishlist, toggleWishlist,
   getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
-  getSavedVouchers, toggleVoucher,
+  getSavedVouchers, toggleVoucher, getShopInfo
 } = require("../controllers/userController");
 const { protect, admin } = require("../middleware/authMiddleware");
 
 // Public
+router.get("/shop/:id", getShopInfo);
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 

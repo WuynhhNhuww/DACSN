@@ -2,17 +2,22 @@ import { Link, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import {
     FaChartBar, FaBox, FaPlus, FaClipboardList,
-    FaTags, FaTachometerAlt, FaStore,
+    FaTags, FaTachometerAlt, FaStore, FaExclamationTriangle, FaComments
 } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
+
+import { FaStar } from "react-icons/fa"; // Added FaStar import if not exist
 
 const LINKS = [
     { icon: <FaTachometerAlt />, label: "Dashboard", path: "/seller/dashboard" },
     { icon: <FaBox />, label: "Sản phẩm", path: "/seller/products" },
     { icon: <FaPlus />, label: "Thêm sản phẩm", path: "/seller/products/new" },
     { icon: <FaClipboardList />, label: "Đơn hàng", path: "/seller/orders" },
-    { icon: <FaTags />, label: "Khuyến mãi", path: "/seller/promotions" },
-    { icon: <FaChartBar />, label: "Phân tích", path: "/seller/analytics" },
+    { icon: <FaComments />, label: "Tin nhắn", path: "/seller/messages" },
+    { icon: <FaStar />, label: "Đánh giá", path: "/seller/reviews" },
+    { icon: <FaTags />, label: "Vouchers", path: "/seller/vouchers" },
+    { icon: <FaChartBar />, label: "Quảng cáo", path: "/seller/ads" },
+    { icon: <FaExclamationTriangle />, label: "Khiếu nại", path: "/seller/complaints" },
 ];
 
 export default function SellerSidebar() {

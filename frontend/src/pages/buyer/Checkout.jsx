@@ -33,17 +33,12 @@ export default function Checkout() {
     const [couponMessage, setCouponMessage] = useState("");
     const [showVoucherModal, setShowVoucherModal] = useState(false);
 
-    const availableVouchers = [
-        { code: "FREESHIP", title: "Free Shipping", desc: "Up to 30k off on delivery", type: "shipping", value: 30000, minOrder: 0 },
-        { code: "MODERN100K", title: "100K Discount", desc: "For orders over 500k", type: "discount", value: 100000, minOrder: 500000 },
-        { code: "WELCOME50", title: "50K Welcome Gift", desc: "For orders over 200k", type: "discount", value: 50000, minOrder: 200000 },
-    ];
-
+    const [availableVouchers, setAvailableVouchers] = useState([]);
     const [savedVoucherCodes, setSavedVoucherCodes] = useState([]);
 
     useEffect(() => {
         if (user && (user.role === "seller" || user.role === "admin")) {
-            navigate("/");
+            navigate("/home");
             return;
         }
         if (!items || items.length === 0) {
@@ -51,17 +46,40 @@ export default function Checkout() {
             return;
         }
 
-        axiosClient.get("/api/users/vouchers")
-            .then(res => setSavedVoucherCodes(res.data || []))
-            .catch(() => { })
-            .finally(() => setLoading(false));
+        Promise.all([
+            axiosClient.get("/api/users/vouchers").catch(() => ({ data: [] })),
+            axiosClient.get("/api/vouchers").catch(() => ({ data: [] }))
+        ]).then(([resSaved, resAll]) => {
+            setSavedVoucherCodes(resSaved.data || []);
+            const mapped = (resAll.data || []).map(v => ({
+                code: v.code,
+                title: v.name,
+                desc: v.type === "percentage" ? `Giảm ${v.value}%` : `Giảm ${Number(v.value).toLocaleString("vi-VN")}₫`,
+                type: "discount",
+                value: v.value,
+                valueType: v.type, // 'percentage' | 'fixed'
+                minOrder: v.minOrderValue || 0,
+                scope: v.scope,
+                sellerId: v.sellerId
+            }));
+            setAvailableVouchers(mapped);
+        }).finally(() => setLoading(false));
     }, [items, navigate, user]);
 
     const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
     const shippingFee = subtotal >= 500000 || items.length === 0 ? 0 : 30000;
 
     const freeshipAmount = appliedFreeship ? Math.min(shippingFee, appliedFreeship.value) : 0;
-    const discountAmount = appliedDiscount ? Math.min(subtotal, appliedDiscount.value) : 0;
+    
+    let computedDiscountAmount = 0;
+    if (appliedDiscount) {
+        if (appliedDiscount.valueType === "percentage") {
+            computedDiscountAmount = (subtotal * appliedDiscount.value) / 100;
+        } else {
+            computedDiscountAmount = appliedDiscount.value;
+        }
+    }
+    const discountAmount = Math.min(subtotal, computedDiscountAmount);
 
     const total = Math.max(0, subtotal + shippingFee - freeshipAmount - discountAmount);
 
@@ -129,6 +147,12 @@ export default function Checkout() {
 
             const res = await axiosClient.post("/api/orders", orderData);
 
+            if (res.data.paymentUrl) {
+                // If VNPay is selected, redirect to the payment gateway
+                window.location.href = res.data.paymentUrl;
+                return;
+            }
+
             localStorage.removeItem("modern_store_cart");
             try {
                 await axiosClient.delete("/api/cart/clear");
@@ -148,7 +172,16 @@ export default function Checkout() {
         <div style={{ background: "var(--bg)", minHeight: "100vh", paddingBottom: 80 }}>
             <div className="container" style={{ paddingTop: 40 }}>
                 <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 32 }}>Checkout</h1>
-                {error && <div className="alert alert-error" style={{ marginBottom: 24, borderRadius: 12 }}>{error}</div>}
+                {error && (
+                    <div className="alert alert-error" style={{ marginBottom: 24, borderRadius: 12 }}>
+                        {error}
+                        {error.includes("ShopeePay") && (
+                            <span style={{ marginLeft: 8 }}>
+                                <button className="linkBtn" onClick={() => navigate('/buyer/wallet')} style={{ textDecoration: 'underline', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Nạp ngay</button>
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 <div className="cartGrid" style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 32, alignItems: "start" }}>
                     <div className="cartLeft">
@@ -233,6 +266,30 @@ export default function Checkout() {
                                     </div>
                                     <span style={{ fontSize: 20 }}>💳</span>
                                 </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer", padding: "16px 20px", borderRadius: 16, border: paymentMethod === "WALLET" ? "2px solid var(--primary)" : "2px solid var(--line)", background: paymentMethod === "WALLET" ? "var(--primary-light)" : "transparent", transition: "all 0.2s" }}>
+                                    <input type="radio" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} style={{ width: 18, height: 18 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 14 }}>Ví ShopeePay (E-Wallet)</div>
+                                        <div style={{ fontSize: 12, color: "var(--text-light)" }}>Thanh toán an toàn, không lo tiền lẻ</div>
+                                    </div>
+                                    <span style={{ fontSize: 20 }}>💰</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer", padding: "16px 20px", borderRadius: 16, border: paymentMethod === "MOMO" ? "2px solid var(--primary)" : "2px solid var(--line)", background: paymentMethod === "MOMO" ? "var(--primary-light)" : "transparent", transition: "all 0.2s" }}>
+                                    <input type="radio" checked={paymentMethod === "MOMO"} onChange={() => setPaymentMethod("MOMO")} style={{ width: 18, height: 18 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 14 }}>Ví MoMo (Cổng thanh toán)</div>
+                                        <div style={{ fontSize: 12, color: "var(--text-light)" }}>Thanh toán qua ứng dụng MoMo / QR Code</div>
+                                    </div>
+                                    <span style={{ fontSize: 20 }}>🧧</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer", padding: "16px 20px", borderRadius: 16, border: paymentMethod === "VNPAY" ? "2px solid var(--primary)" : "2px solid var(--line)", background: paymentMethod === "VNPAY" ? "var(--primary-light)" : "transparent", transition: "all 0.2s" }}>
+                                    <input type="radio" checked={paymentMethod === "VNPAY"} onChange={() => setPaymentMethod("VNPAY")} style={{ width: 18, height: 18 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 14 }}>VNPay (Thanh toán qua Ngân hàng)</div>
+                                        <div style={{ fontSize: 12, color: "var(--text-light)" }}>Internet Banking / QR Code (User Merchant)</div>
+                                    </div>
+                                    <span style={{ fontSize: 20 }}>🏦</span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -243,56 +300,56 @@ export default function Checkout() {
                             <div style={{ marginBottom: 32, padding: "16px 20px", borderRadius: 16, background: "var(--primary-light)", border: "1px dashed var(--primary)" }}>
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: appliedFreeship || appliedDiscount ? 12 : 0 }}>
                                     <span style={{ fontWeight: 700, color: "var(--primary)", display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-                                        <FaTicketAlt /> Modern Vouchers
+                                        <FaTicketAlt /> Vouchers Của Bạn
                                     </span>
                                     <button
                                         className="linkBtn"
                                         style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}
                                         onClick={() => setShowVoucherModal(true)}
                                     >
-                                        Browse <FaChevronRight size={10} />
+                                        Chọn Voucher <FaChevronRight size={10} />
                                     </button>
                                 </div>
                                 {appliedFreeship && (
                                     <div style={{ fontSize: 13, marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(79, 70, 229, 0.1)", color: "var(--primary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <span>Delivery: <b>{appliedFreeship.code}</b></span>
-                                        <button style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }} onClick={() => setAppliedFreeship(null)}>Remove</button>
+                                        <span>Phí vận chuyển: <b>{appliedFreeship.code}</b></span>
+                                        <button style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }} onClick={() => setAppliedFreeship(null)}>Bỏ chọn</button>
                                     </div>
                                 )}
                                 {appliedDiscount && (
                                     <div style={{ fontSize: 13, marginTop: 8, paddingTop: appliedFreeship ? 0 : 12, borderTop: appliedFreeship ? "none" : "1px solid rgba(79, 70, 229, 0.1)", color: "var(--primary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                         <span>Discount: <b>{appliedDiscount.code}</b></span>
-                                        <button style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }} onClick={() => setAppliedDiscount(null)}>Remove</button>
+                                        <button style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }} onClick={() => setAppliedDiscount(null)}>Bỏ chọn</button>
                                     </div>
                                 )}
                             </div>
 
-                            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 24 }}>Final Order</h3>
+                            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 24 }}>Chi tiết thanh toán</h3>
                             <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 15 }}>
-                                <span style={{ color: "var(--text-light)" }}>Subtotal</span>
+                                <span style={{ color: "var(--text-light)" }}>Tổng tiền hàng</span>
                                 <span style={{ fontWeight: 600 }}>{fmt(subtotal)}</span>
                             </div>
                             <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 15 }}>
-                                <span style={{ color: "var(--text-light)" }}>Delivery Fee</span>
+                                <span style={{ color: "var(--text-light)" }}>Phí vận chuyển</span>
                                 <span style={{ fontWeight: 600, color: shippingFee === 0 ? "#10b981" : "var(--text)" }}>{shippingFee === 0 ? "FREE" : fmt(shippingFee)}</span>
                             </div>
 
                             {appliedFreeship && freeshipAmount > 0 && (
                                 <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 15, color: "#10b981", fontWeight: 600 }}>
-                                    <span>Shipping Voucher</span>
+                                    <span>Voucher Vận Chuyển</span>
                                     <span>-{fmt(freeshipAmount)}</span>
                                 </div>
                             )}
                             {appliedDiscount && discountAmount > 0 && (
                                 <div className="sumRow" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 15, color: "#10b981", fontWeight: 600 }}>
-                                    <span>Discount Voucher</span>
+                                    <span>Voucher Giảm Giá</span>
                                     <span>-{fmt(discountAmount)}</span>
                                 </div>
                             )}
 
                             <div style={{ height: 1, background: "var(--line)", margin: "24px 0" }} />
                             <div className="sumRow sumTotal" style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
-                                <span style={{ fontWeight: 800, fontSize: 18 }}>Total Payment</span>
+                                <span style={{ fontWeight: 800, fontSize: 18 }}>Tổng thanh toán</span>
                                 <span style={{ fontWeight: 800, fontSize: 24, color: "var(--primary)" }}>{fmt(total)}</span>
                             </div>
                             <button
@@ -301,7 +358,7 @@ export default function Checkout() {
                                 disabled={placing || items.length === 0}
                                 style={{ width: "100%", padding: 18, borderRadius: 16, fontSize: 16, fontWeight: 700 }}
                             >
-                                {placing ? "Processing..." : "Place Order Now"}
+                                {placing ? "Đang xử lý..." : "Đặt hàng"}
                             </button>
                             <div style={{ textAlign: "center", marginTop: 20, fontSize: 12, color: "var(--text-lighter)" }}>
                                 By placing an order, you agree to our Terms & Privacy.

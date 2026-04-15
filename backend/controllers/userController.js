@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Wallet = require("../models/walletModel");
 const bcrypt = require("bcryptjs");
 
 const generateToken = (id) =>
@@ -15,6 +16,10 @@ exports.registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashedPassword });
+
+    // Tự động tạo Ví rỗng cho User mới
+    await Wallet.create({ user: user._id, balance: 0, frozenBalance: 0 });
+
     res.status(201).json({ _id: user._id, name: user.name, email: user.email });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -29,6 +34,12 @@ exports.loginUser = async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Email hoặc mật khẩu không đúng" });
 
+    // Kiểm tra Ví, nếu chưa có thì phòng ngừa tạo tự động
+    let wallet = await Wallet.findOne({ user: user._id });
+    if (!wallet) {
+      await Wallet.create({ user: user._id, balance: 0, frozenBalance: 0 });
+    }
+
     if (user.isBlocked)
       return res.status(403).json({ message: "Tài khoản của bạn đã bị khóa vĩnh viễn." });
 
@@ -41,6 +52,9 @@ exports.loginUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone,
+      gender: user.gender,
+      dob: user.dob,
       token: generateToken(user._id),
       sellerInfo: user.sellerInfo,
     });
@@ -64,9 +78,22 @@ exports.updateUserProfile = async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    user.name = req.body.name || user.name;
+    if (req.body.name) user.name = req.body.name;
+    if (req.body.phone !== undefined) user.phone = req.body.phone;
+    if (req.body.gender !== undefined) user.gender = req.body.gender;
+    if (req.body.dob !== undefined) user.dob = req.body.dob || null;
+
     const updated = await user.save();
-    res.json({ _id: updated._id, name: updated.name, email: updated.email, role: updated.role, sellerInfo: updated.sellerInfo });
+    res.json({
+      _id: updated._id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      phone: updated.phone,
+      gender: updated.gender,
+      dob: updated.dob,
+      sellerInfo: updated.sellerInfo,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -339,6 +366,44 @@ exports.toggleVoucher = async (req, res) => {
     else user.savedVouchers.splice(index, 1);
     await user.save();
     res.json(user.savedVouchers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/users/shop/:id (Public)
+exports.getShopInfo = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password -savedVouchers -addresses -wishlist");
+    if (!user || user.role !== "seller") {
+      return res.status(404).json({ message: "Cửa hàng không tồn tại" });
+    }
+
+    const Product = require("../models/productModel");
+    const products = await Product.find({ seller: user._id, status: "approved", isDeleted: false });
+
+    let totalRating = 0;
+    let reviewCount = 0;
+    products.forEach(p => {
+      totalRating += (p.rating || 0) * (p.numReviews || 0);
+      reviewCount += (p.numReviews || 0);
+    });
+
+    const shopRating = reviewCount > 0 ? (totalRating / reviewCount).toFixed(1) : 0;
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      shopName: user.sellerInfo?.shopName || user.name,
+      shopDescription: user.sellerInfo?.shopDescription || "",
+      phone: user.sellerInfo?.phone || "",
+      address: user.sellerInfo?.address || "",
+      reputationScore: user.sellerInfo?.reputationScore || 5,
+      joinedAt: user.createdAt,
+      productCount: products.length,
+      rating: shopRating,
+      reviewCount
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
