@@ -48,6 +48,30 @@ export default function ShopDetail() {
             .finally(() => setLoadingProducts(false));
     }, [id, page, searchQuery]);
 
+    // Lấy vouchers của shop
+    const [shopVouchers, setShopVouchers] = useState([]);
+    const [savedVouchers, setSavedVouchers] = useState([]);
+    
+    useEffect(() => {
+        Promise.all([
+            axiosClient.get(`/api/vouchers?scope=shop&sellerId=${id}`).catch(() => ({ data: [] })),
+            axiosClient.get("/api/users/vouchers").catch(() => ({ data: [] }))
+        ]).then(([resVouchers, resSaved]) => {
+            setShopVouchers(resVouchers.data || []);
+            setSavedVouchers(resSaved.data || []);
+        });
+    }, [id]);
+
+    const handleSaveVoucher = async (code) => {
+        try {
+            const res = await axiosClient.post("/api/users/vouchers", { voucherCode: code });
+            setSavedVouchers(res.data);
+            alert("Lưu voucher thành công!");
+        } catch (err) {
+            alert(err.response?.data?.message || "Lỗi khi lưu voucher.");
+        }
+    };
+
     const handleSearch = (e) => {
         e.preventDefault();
         setPage(1); // Reset page về 1 khi search
@@ -107,7 +131,41 @@ export default function ShopDetail() {
                     </div>
                 </div>
 
-                {/* 2. Thanh lọc / Tìm kiếm trong Shop */}
+                {/* 2. Voucher của Shop */}
+                {shopVouchers.length > 0 && (
+                    <div style={{ background: "#fff", padding: "24px 32px", borderRadius: 16, marginBottom: 24, boxShadow: "var(--shadow-sm)" }}>
+                        <h3 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: 16, color: "var(--text)", display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ color: "var(--primary)" }}>🎫</span> Mã giảm giá của Shop
+                        </h3>
+                        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+                            {shopVouchers.map(v => {
+                                const isSaved = savedVouchers.includes(v.code);
+                                return (
+                                    <div key={v._id} style={{ display: "flex", border: "1px solid var(--primary-light)", borderRadius: 8, overflow: "hidden", minWidth: 300, background: "var(--bg)" }}>
+                                        <div style={{ background: "var(--primary)", color: "#fff", padding: "16px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", width: 90 }}>
+                                            <div style={{ fontSize: "1.2rem", fontWeight: 800 }}>{v.type === "percentage" ? `${v.value}%` : `-${v.value/1000}k`}</div>
+                                            <div style={{ fontSize: "0.7rem", marginTop: 4, textAlign: "center" }}>Giảm</div>
+                                        </div>
+                                        <div style={{ padding: "12px 16px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", position: "relative" }}>
+                                            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>{v.name}</div>
+                                            <div style={{ fontSize: "0.8rem", color: "var(--text-light)", marginTop: 4 }}>Đơn tối thiểu {fmt(v.minOrderValue)}</div>
+                                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>HSD: {new Date(v.endDate).toLocaleDateString("vi-VN")}</div>
+                                            <button
+                                                onClick={() => handleSaveVoucher(v.code)}
+                                                style={{ position: "absolute", right: 16, bottom: "50%", transform: "translateY(50%)", padding: "6px 16px", background: isSaved ? "#f1f5f9" : "var(--primary)", border: isSaved ? "1px solid var(--line)" : "none", color: isSaved ? "var(--text-light)" : "#fff", borderRadius: 4, fontWeight: 700, fontSize: "0.8rem", cursor: isSaved ? "default" : "pointer" }}
+                                                disabled={isSaved}
+                                            >
+                                                {isSaved ? "Đã lưu" : "Lưu"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. Thanh lọc / Tìm kiếm trong Shop */}
                 <div style={{ background: "#fff", padding: "16px 24px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, boxShadow: "var(--shadow-sm)" }}>
                     <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>
                         {searchQuery ? `Kết quả tìm kiếm cho "${searchQuery}"` : "Tất cả sản phẩm"}

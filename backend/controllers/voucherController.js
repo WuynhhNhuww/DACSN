@@ -22,6 +22,7 @@ exports.getVouchers = async (req, res) => {
         endDate: { $gte: now },
       };
       if (req.query.scope) filter.scope = req.query.scope;
+      if (req.query.sellerId) filter.sellerId = req.query.sellerId;
     }
 
     const vouchers = await Voucher.find(filter).sort({ createdAt: -1 });
@@ -117,6 +118,11 @@ exports.applyVoucher = async (req, res) => {
     });
 
     if (!voucher) return res.status(404).json({ message: "Mã không tồn tại hoặc đã hết hạn" });
+
+    // Kiểm tra xem user này đã từng dùng mã này chưa
+    if (voucher.usedByUsers && voucher.usedByUsers.includes(req.user._id)) {
+      return res.status(400).json({ message: "Bạn đã sử dụng mã giảm giá này rồi" });
+    }
 
     // Kiểm tra lượt dùng
     if (voucher.maxUses !== null && voucher.usedCount >= voucher.maxUses)

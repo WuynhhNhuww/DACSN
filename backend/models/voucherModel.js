@@ -58,6 +58,12 @@ const voucherSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Danh sách những người đã sử dụng mã này (để giới hạn 1 khách dùng 1 lần)
+    usedByUsers: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    }],
+
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

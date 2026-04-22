@@ -113,6 +113,21 @@ export default function Checkout() {
     const handleApplyTextVoucher = () => {
         const v = availableVouchers.find(x => x.code === couponCode.trim().toUpperCase());
         if (v) {
+            // Kiểm tra: nếu mã là toàn sàn (platform), TẤT CẢ seller trong đơn phải có isPremiumServiceRegistered = true
+            if (v.scope === "platform") {
+                const hasNonPremiumSeller = groupedItems.some(g => {
+                    // Check item đầu tiên của shop để lấy flag isPremiumServiceRegistered
+                    // getCart -> items.seller có populate sellerInfo
+                    const firstItem = g.items[0];
+                    return !firstItem.seller?.sellerInfo?.isPremiumServiceRegistered;
+                });
+                
+                if (hasNonPremiumSeller) {
+                    setCouponMessage("Mã toàn sàn chỉ áp dụng cho shop đã đăng ký dịch vụ Freeship/Voucher Xtra.");
+                    return;
+                }
+            }
+
             const disabled = subtotal < v.minOrder || (v.type === "shipping" && shippingFee === 0);
             if (disabled) {
                 setCouponMessage("Requirements not met for this voucher.");
@@ -142,7 +157,9 @@ export default function Checkout() {
                 itemsPrice: subtotal,
                 shippingFee: shippingFee,
                 discountAmount: freeshipAmount + discountAmount,
-                totalPrice: total
+                totalPrice: total,
+                voucherId: appliedDiscount?._id,
+                freeshipId: appliedFreeship?._id
             };
 
             const res = await axiosClient.post("/api/orders", orderData);
@@ -395,8 +412,21 @@ export default function Checkout() {
                             <div>
                                 <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 16 }}>Free Delivery Vouchers</h4>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                    {availableVouchers.filter(x => x.type === "shipping" && savedVoucherCodes.includes(x.code)).map(v => {
-                                        const disabled = subtotal < v.minOrder || (v.type === "shipping" && shippingFee === 0);
+                                    {availableVouchers.filter(x => 
+                                        x.type === "shipping" && 
+                                        (x.scope === "platform" || savedVoucherCodes.includes(x.code) || (x.scope === "shop" && groupedItems.some(g => g.shopId === x.sellerId)))
+                                    ).map(v => {
+                                        let disabled = subtotal < v.minOrder || (v.type === "shipping" && shippingFee === 0);
+                                        let reason = disabled ? "Not applicable" : "";
+
+                                        if (!disabled && v.scope === "platform") {
+                                            const hasNonPremiumSeller = groupedItems.some(g => !g.items[0]?.seller?.sellerInfo?.isPremiumServiceRegistered);
+                                            if (hasNonPremiumSeller) {
+                                                disabled = true;
+                                                reason = "Shop chưa đăng ký dịch vụ Freeship/Xtra";
+                                            }
+                                        }
+
                                         return (
                                             <div key={v.code} style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, border: appliedFreeship?.code === v.code ? "2px solid var(--primary)" : "2px solid var(--line)", borderRadius: 16, background: appliedFreeship?.code === v.code ? "var(--primary-light)" : "white", opacity: disabled ? 0.5 : 1 }}>
                                                 <div style={{ width: 56, height: 56, background: "var(--primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 12, fontSize: 18 }}>
@@ -405,7 +435,7 @@ export default function Checkout() {
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{v.title}</div>
                                                     <div style={{ fontSize: 12, color: "var(--text-light)" }}>{v.desc}</div>
-                                                    {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>Not applicable</div>}
+                                                    {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>{reason}</div>}
                                                 </div>
                                                 <input
                                                     type="radio"
@@ -418,8 +448,11 @@ export default function Checkout() {
                                             </div>
                                         );
                                     })}
-                                    {availableVouchers.filter(x => x.type === "shipping" && savedVoucherCodes.includes(x.code)).length === 0 && (
-                                        <div style={{ fontSize: 13, color: "var(--text-lighter)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No saved shipping vouchers found.</div>
+                                    {availableVouchers.filter(x => 
+                                        x.type === "shipping" && 
+                                        (x.scope === "platform" || savedVoucherCodes.includes(x.code) || (x.scope === "shop" && groupedItems.some(g => g.shopId === x.sellerId)))
+                                    ).length === 0 && (
+                                        <div style={{ fontSize: 13, color: "var(--text-lighter)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No available shipping vouchers found.</div>
                                     )}
                                 </div>
                             </div>
@@ -428,8 +461,21 @@ export default function Checkout() {
                             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
                                 <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 16 }}>Discount Vouchers</h4>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                    {availableVouchers.filter(x => x.type === "discount" && savedVoucherCodes.includes(x.code)).map(v => {
-                                        const disabled = subtotal < v.minOrder;
+                                    {availableVouchers.filter(x => 
+                                        x.type === "discount" && 
+                                        (x.scope === "platform" || savedVoucherCodes.includes(x.code) || (x.scope === "shop" && groupedItems.some(g => g.shopId === x.sellerId)))
+                                    ).map(v => {
+                                        let disabled = subtotal < v.minOrder;
+                                        let reason = disabled ? `Min. order ${fmt(v.minOrder)}` : "";
+
+                                        if (!disabled && v.scope === "platform") {
+                                            const hasNonPremiumSeller = groupedItems.some(g => !g.items[0]?.seller?.sellerInfo?.isPremiumServiceRegistered);
+                                            if (hasNonPremiumSeller) {
+                                                disabled = true;
+                                                reason = "Shop chưa đăng ký dịch vụ Freeship/Xtra";
+                                            }
+                                        }
+
                                         return (
                                             <div key={v.code} style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, border: appliedDiscount?.code === v.code ? "2px solid var(--primary)" : "2px solid var(--line)", borderRadius: 16, background: appliedDiscount?.code === v.code ? "var(--primary-light)" : "white", opacity: disabled ? 0.5 : 1 }}>
                                                 <div style={{ width: 56, height: 56, background: "var(--primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 12, fontSize: 18 }}>
@@ -438,7 +484,7 @@ export default function Checkout() {
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{v.title}</div>
                                                     <div style={{ fontSize: 12, color: "var(--text-light)" }}>{v.desc}</div>
-                                                    {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>Min. order {fmt(v.minOrder)}</div>}
+                                                    {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>{reason}</div>}
                                                 </div>
                                                 <input
                                                     type="radio"
@@ -451,8 +497,11 @@ export default function Checkout() {
                                             </div>
                                         );
                                     })}
-                                    {availableVouchers.filter(x => x.type === "discount" && savedVoucherCodes.includes(x.code)).length === 0 && (
-                                        <div style={{ fontSize: 13, color: "var(--text-lighter)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No saved discount vouchers found.</div>
+                                    {availableVouchers.filter(x => 
+                                        x.type === "discount" && 
+                                        (x.scope === "platform" || savedVoucherCodes.includes(x.code) || (x.scope === "shop" && groupedItems.some(g => g.shopId === x.sellerId)))
+                                    ).length === 0 && (
+                                        <div style={{ fontSize: 13, color: "var(--text-lighter)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No available discount vouchers found.</div>
                                     )}
                                 </div>
                             </div>

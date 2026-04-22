@@ -2,6 +2,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Wallet = require("../models/walletModel");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const sendEmail = require("../utils/emailHelper");
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
@@ -15,12 +20,47 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashedPassword });
+    
+    // Tạo mã xác thực ngẫu nhiên
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const user = await User.create({ 
+      name, 
+      email, 
+      password: hashedPassword,
+      isVerified: false,
+      verificationToken
+    });
 
     // Tự động tạo Ví rỗng cho User mới
     await Wallet.create({ user: user._id, balance: 0, frozenBalance: 0 });
 
-    res.status(201).json({ _id: user._id, name: user.name, email: user.email });
+    // Gửi email xác nhận
+    const verificationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/verify-email?token=${verificationToken}&email=${email}`;
+    
+    const htmlContent = `
+      <h1>Xác nhận tài khoản Shopee Mini</h1>
+      <p>Chào ${name},</p>
+      <p>Cảm ơn bạn đã đăng ký. Vui lòng nhấn vào link bên dưới để xác thực tài khoản của bạn:</p>
+      <a href="${verificationUrl}" style="background: #ee4d2d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Xác nhận ngay</a>
+      <p>Link này sẽ hết hạn sau 24h.</p>
+    `;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "Xác nhận tài khoản Shopee Mini",
+        html: htmlContent,
+      });
+      res.status(201).json({ 
+        message: "Đăng ký thành công. Vui lòng kiểm tra email để xác nhận tài khoản." 
+      });
+    } catch (mailError) {
+      console.error("Mail error:", mailError);
+      res.status(201).json({ 
+        message: "Đăng ký thành công nhưng không thể gửi email xác nhận. Vui lòng liên hệ hỗ trợ." 
+      });
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -33,6 +73,12 @@ exports.loginUser = async (req, res) => {
 
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Email hoặc mật khẩu không đúng" });
+
+    if (!user.isVerified) {
+      return res.status(401).json({ 
+        message: "Tài khoản chưa được xác thực. Vui lòng kiểm tra email." 
+      });
+    }
 
     // Kiểm tra Ví, nếu chưa có thì phòng ngừa tạo tự động
     let wallet = await Wallet.findOne({ user: user._id });
@@ -60,6 +106,89 @@ exports.loginUser = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc Verify Email
+// @route GET /api/users/verify-email?token=...&email=...
+exports.verifyEmail = async (req, res) => {
+  try {
+    const { token, email } = req.query;
+    const user = await User.findOne({ email, verificationToken: token });
+
+    if (!user) {
+      return res.status(400).json({ message: "Link xác nhận không hợp lệ hoặc đã hết hạn." });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = null;
+    await user.save();
+
+    res.json({ message: "Tài khoản đã được xác thực thành công. Bạn có thể đăng nhập ngay." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc Google Login
+// @route POST /api/users/google-login
+exports.googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    
+    // Xác thực token với Google
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    let user = await User.findOne({ 
+      $or: [{ googleId }, { email }] 
+    });
+
+    if (user) {
+      // Nếu user tồn tại nhưng chưa có googleId (đăng ký thường trước đó)
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.isVerified = true; // Google email mặc định là verified
+        await user.save();
+      }
+    } else {
+      // Tạo user mới từ Google
+      user = await User.create({
+        name,
+        email,
+        googleId,
+        isVerified: true,
+        // password không bắt buộc vì đã có googleId (theo mapping schema mới)
+      });
+      
+      // Tạo Ví rỗng
+      await Wallet.create({ user: user._id, balance: 0, frozenBalance: 0 });
+    }
+
+    // Kiểm tra Ví, nếu chưa có thì phòng ngừa tạo tự động
+    let wallet = await Wallet.findOne({ user: user._id });
+    if (!wallet) {
+      await Wallet.create({ user: user._id, balance: 0, frozenBalance: 0 });
+    }
+
+    if (user.isBlocked)
+      return res.status(403).json({ message: "Tài khoản của bạn đã bị khóa." });
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id),
+      sellerInfo: user.sellerInfo,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Google Authentication failed: " + err.message });
   }
 };
 
@@ -127,6 +256,36 @@ exports.becomeSeller = async (req, res) => {
     res.json({
       message: "Đăng ký thành công. Tài khoản seller đang chờ admin duyệt.",
       sellerInfo: updated.sellerInfo,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Đăng ký dịch vụ Gói Freeship / Voucher Xtra (Premium Service)
+exports.togglePremiumService = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user || user.role !== "seller") {
+      return res.status(404).json({ message: "Seller không tồn tại" });
+    }
+
+    const { action } = req.body; // 'register' hoặc 'cancel'
+    
+    if (!user.sellerInfo) user.sellerInfo = {};
+    
+    if (action === "register") {
+      user.sellerInfo.isPremiumServiceRegistered = true;
+    } else if (action === "cancel") {
+      user.sellerInfo.isPremiumServiceRegistered = false;
+    } else {
+      return res.status(400).json({ message: "Action không hợp lệ" });
+    }
+
+    await user.save();
+    res.json({
+      message: action === "register" ? "Đã đăng ký Gói Dịch Vụ thành công" : "Đã hủy Gói Dịch Vụ",
+      isPremiumServiceRegistered: user.sellerInfo.isPremiumServiceRegistered
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

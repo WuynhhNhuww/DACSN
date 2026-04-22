@@ -1,62 +1,82 @@
-# DACSN E-commerce
+# DACSN Shopee Mini - Dự án Thương mại Điện tử
 
-## Tóm tắt dự án
-DACSN là một nền tảng thương mại điện tử cho phép người dùng mua sắm các sản phẩm điện tử, sản phẩm chăm sóc da, và nhiều mặt hàng khác. Dự án này được xây dựng với giao diện người dùng bằng React.js, một backend hiệu suất cao với Node.js, và lưu trữ dữ liệu thông qua MongoDB.  
+Dự án Shopee Mini (DACSN) là một nền tảng thương mại điện tử toàn diện được xây dựng trên stack **MERN** (MongoDB, Express.js, React.js, Node.js). Nền tảng này cung cấp trải nghiệm mua sắm và bán hàng trực tuyến với tích hợp thanh toán hiện đại.
 
-## Tính năng đã triển khai
-- **Đăng nhập**: Người dùng có thể dễ dàng đăng nhập vào tài khoản của mình.  
-- **Mua sắm**: Giao diện mua sắm thân thiện với người sử dụng, cho phép duyệt sản phẩm, thêm vào giỏ hàng và kiểm tra để thanh toán.  
-- **Quản lý người bán**: Người bán có thể quản lý và theo dõi đơn hàng của mình, cũng như cập nhật danh sách sản phẩm.  
-- **Bảng quản trị**: Quản trị viên có thể dễ dàng quản lý người dùng, đơn hàng, và các hoạt động khác trên nền tảng.  
+## 🚀 Tính năng chính
 
-## Công nghệ sử dụng
-- **Frontend**: React.js  
-- **Backend**: Node.js  
-- **Cơ sở dữ liệu**: MongoDB  
+### 🛒 Dành cho Người mua (Buyer)
+- **Tìm kiếm & Duyệt sản phẩm**: Khám phá kho sản phẩm phong phú theo danh mục.
+- **Giỏ hàng & Thanh toán**: Quản lý giỏ hàng linh hoạt và quy trình đặt hàng tối ưu.
+- **Ví ShopeePay**: Nạp tiền an toàn qua cổng **VNPay** để thanh toán đơn hàng nhanh chóng.
+- **Quản lý đơn hàng**: Theo dõi chi tiết trạng thái đơn hàng (Chờ xác nhận, Đang giao, Đã giao, Đã hủy).
+- **Yêu thích & Đánh giá**: Lưu sản phẩm yêu thích và gửi phản hồi, đánh giá kèm hình ảnh sau khi nhận hàng.
 
-## Cấu trúc thư mục
+### 🏪 Dành cho Người bán (Seller)
+- **Quản lý Sản phẩm**: Đăng bán, chỉnh sửa thông tin và quản lý tồn kho sản phẩm.
+- **Quản lý Đơn hàng**: Tiếp nhận đơn hàng mới và cập nhật trạng thái vận chuyển.
+- **Trang gian hàng (Shop Profile)**: Tùy chỉnh giao diện shop, xem danh sách sản phẩm riêng của shop.
+- **Ví doanh thu & Rút tiền**: Theo dõi số dư từ việc bán hàng và thực hiện rút tiền về ngân hàng qua **VNPay Integration**.
 
-## Backend
+### 🛡️ Dành cho Quản trị viên (Admin)
+- **Bảng điều khiển (Dashboard)**: Thống kê doanh thu, số lượng người dùng, đơn hàng và sản phẩm theo thời gian.
+- **Quản lý người dùng**: Duyệt danh sách, khóa/mở khóa tài khoản người dùng và người bán.
+- **Quản lý Banner**: Cập nhật các banner quảng cáo và khuyến mãi trên trang chủ.
+- **Xử lý Khiếu nại**: Tiếp nhận và giải quyết các khiếu nại từ người mua đối với đơn hàng.
 
-- config
-- controllers
-- middleware
-- models
-- node_modules
-- routes
-- .env
-- package.json
-- package-lock.json
-- seed.js
-- seedDummy.js
-- server.js
+## 🛠️ Công nghệ sử dụng
 
-## Frontend
+- **Frontend**: React.js (Vite), React Router Dom, Axios, Recharts, React Icons.
+- **Backend**: Node.js, Express.js.
+- **Cơ sở dữ liệu**: MongoDB (Mongoose ODM).
+- **Thanh toán**: Tích hợp cổng thanh toán VNPay (Version 2.1.0).
+- **Xác thực**: JSON Web Token (JWT) & Bcryptjs để bảo mật mật khẩu.
+- **Xử lý File**: Multer để tải lên hình ảnh sản phẩm và avatar.
 
-- public
-- src  
-  - api  
-  - assets  
-  - components  
-  - context  
-  - layouts  
-  - pages  
-  - styles  
+## 📂 Cấu trúc thư mục
 
+```text
+shopee-mini/
+├── backend/            # Mã nguồn Server (Node.js/Express)
+│   ├── config/         # Cấu hình Database & VNPay
+│   ├── controllers/    # Xử lý logic nghiệp vụ cho từng module
+│   ├── models/         # Định nghĩa cấu trúc dữ liệu (Schema)
+│   ├── routes/         # Khai báo các API Endpoints
+│   ├── utils/          # Các hàm bổ trợ (Tạo signature VNPay, gửi thông báo...)
+│   └── server.js       # Entry point của server
+├── frontend/           # Mã nguồn Client (React)
+│   ├── src/
+│   │   ├── api/        # Cấu hình Axios và các hàm gọi API
+│   │   ├── components/ # Các thành phần UI tái sử dụng
+│   │   ├── pages/      # Giao diện chính cho Buyer, Seller, Admin
+│   │   └── App.jsx     # Cấu hình Routing chính
+│   └── vite.config.js
+└── README.md
+```
 
-## Hướng dẫn cài đặt
-1. **Clone repository**: `git clone https://github.com/WuynhhNhuww/DACSN.git`
-2. **Cài đặt dependencies** cho frontend và backend:
-   - Vào thư mục `client`: `cd client` và chạy `npm install`
-   - Vào thư mục `server`: `cd server` và chạy `npm install`
-3. **Chạy ứng dụng**:
-   - Khởi động backend: `cd server` và chạy `node index.js`
-   - Khởi động frontend: `cd client` và chạy `npm start`
+## ⚙️ Hướng dẫn cài đặt & Chạy ứng dụng
 
-## Tài liệu API
-- **Đăng nhập**: `POST /api/auth/login`
-- **Lấy danh sách sản phẩm**: `GET /api/products`
-- **Thêm sản phẩm**: `POST /api/products`
+### 1. Cấu hình Backend
+1. Di chuyển vào thư mục backend: `cd backend`
+2. Cài đặt các gói phụ thuộc: `npm install`
+3. Tạo file `.env` và cấu hình các thông số sau:
+   ```env
+   PORT=5000
+   MONGO_URI=your_mongodb_connection_string
+   JWT_SECRET=your_super_secret_key
+   # VNPay Config
+   VNP_TMNCODE=your_tmn_code
+   VNP_HASHSECRET=your_hash_secret
+   VNP_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+   VNP_API=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+   VNP_RETURNURL=http://localhost:5000/api/wallets/vnpay_return
+   ```
+4. Khởi động server phát triển: `npm run dev`
 
-## Tính năng trong tương lai
-- **Tích hợp cổng thanh toán**: Dự kiến sẽ tích hợp VNPay và MoMo để thuận tiện hơn cho người dùng khi thanh toán.  
+### 2. Cấu hình Frontend
+1. Di chuyển vào thư mục frontend: `cd frontend`
+2. Cài đặt các gói phụ thuộc: `npm install`
+3. Chạy ứng dụng: `npm run dev`
+4. Truy cập website tại: `http://localhost:5173`
+
+---
+⚡ *Dự án được phát triển nhằm mục đích học tập và xây dựng hệ thống thương mại điện tử thực tế.*

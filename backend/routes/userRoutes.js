@@ -1,22 +1,25 @@
 const express = require("express");
 const router = express.Router();
 const {
-  registerUser, loginUser, getUserProfile, updateUserProfile, becomeSeller,
+  registerUser, loginUser, verifyEmail, googleLogin, getUserProfile, updateUserProfile, becomeSeller,
   getAllUsers, blockUser, approveSeller, rejectSeller, updateSellerStatus,
   getWishlist, toggleWishlist,
   getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
-  getSavedVouchers, toggleVoucher, getShopInfo
+  getSavedVouchers, toggleVoucher, getShopInfo, togglePremiumService
 } = require("../controllers/userController");
 const { protect, admin } = require("../middleware/authMiddleware");
 
 // Public
 router.get("/shop/:id", getShopInfo);
 router.post("/register", registerUser);
+router.get("/verify-email", verifyEmail);
 router.post("/login", loginUser);
+router.post("/google-login", googleLogin);
 
 // Protected
 router.route("/profile").get(protect, getUserProfile).put(protect, updateUserProfile);
 router.put("/become-seller", protect, becomeSeller);
+router.post("/premium-service", protect, togglePremiumService);
 
 // Wishlist
 router.get("/wishlist", protect, getWishlist);

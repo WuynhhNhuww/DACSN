@@ -33,24 +33,31 @@ export default function Wallet() {
 
   const handleTransaction = async (e) => {
     e.preventDefault();
+    if (actionType === "WITHDRAW" && Number(amount) < 50000) {
+      alert("Số tiền rút tối thiểu là 50.000 VNĐ.");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       
       if (actionType === "WITHDRAW") {
+         // Thực hiện rút tiền qua API Backend (Gắn nhãn VNPay)
         await axios.post("http://localhost:5000/api/wallets/withdraw", { 
           amount: Number(amount),
-          description: "Rút tiền về ngân hàng" 
+          description: "Rút tiền về ngân hàng qua VNPay" 
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        alert("Yêu cầu rút tiền đã được gửi!");
+        alert("Yêu cầu duyệt rút tiền qua cổng VNPay đã được gửi thành công!");
         setShowModal(false);
+        setAmount("");
         fetchWallet();
         return;
       }
 
-      // Luồng Nạp tiền (DEPOSIT)
-      if (paymentMethod === "VNPAY") {
+      // Luồng Nạp tiền (DEPOSIT) qua VNPAY
+      if (true) { // Luôn dùng VNPay
         const { data } = await axios.post("http://localhost:5000/api/wallets/vnpay-create", { 
           amount: Number(amount) 
         }, {
@@ -61,17 +68,6 @@ export default function Wallet() {
           // Chuyển hướng sang cổng VNPay
           window.location.href = data.paymentUrl;
         }
-      } else {
-        // Mô phỏng cũ
-        await axios.post("http://localhost:5000/api/wallets/deposit", { 
-          amount: Number(amount),
-          description: "Nạp tiền mô phỏng (Hệ thống cũ)" 
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        fetchWallet();
-        setShowModal(false);
-        setAmount("");
       }
     } catch (err) {
       alert(err.response?.data?.message || "Giao dịch thất bại");
@@ -159,51 +155,57 @@ export default function Wallet() {
                 <label className="block text-gray-700 mb-2 text-sm font-medium">Số tiền (VNĐ)</label>
                 <input 
                   type="number" 
-                  min="10000"
+                  min={actionType === "WITHDRAW" ? "50000" : "10000"}
                   step="10000"
                   required
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                  placeholder="Nhập số tiền..."
+                  placeholder={actionType === "WITHDRAW" ? "Nhập số tiền (Tối thiểu 50.000đ)..." : "Nhập số tiền..."}
                 />
+                {actionType === "WITHDRAW" && amount && amount < 50000 && (
+                  <p className="text-red-500 text-xs mt-1">Số tiền rút tối thiểu là 50.000 VNĐ</p>
+                )}
               </div>
               
-              {actionType === "DEPOSIT" && (
-                <div className="mb-4">
-                   <label className="block text-gray-700 mb-2 text-sm font-medium">Phương thức nạp tiền</label>
-                   <div className="space-y-2">
-                      <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                         <input 
-                            type="radio" 
-                            name="payMethod" 
-                            value="VNPAY"
-                            checked={paymentMethod === "VNPAY"}
-                            onChange={() => setPaymentMethod("VNPAY")}
-                            className="mr-3"
-                         />
-                         <div>
-                            <span className="font-semibold block">Cổng VNPay (Thử nghiệm)</span>
-                            <span className="text-xs text-gray-500">Thanh toán qua app ngân hàng / QR Code</span>
-                         </div>
-                      </label>
-                      <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+              <div className="mb-4">
+                 <label className="block text-gray-700 mb-2 text-sm font-medium">
+                   {actionType === "DEPOSIT" ? "Phương thức nạp tiền" : "Phương thức rút tiền"}
+                 </label>
+                 <div className="space-y-2">
+                    <label className="flex items-center p-3 border border-orange-500 bg-orange-50 rounded-lg cursor-pointer transition">
+                       <input 
+                          type="radio" 
+                          name="payMethod" 
+                          value="VNPAY"
+                          checked={true}
+                          readOnly
+                          className="mr-3 text-orange-600 focus:ring-orange-500"
+                       />
+                       <div>
+                          <span className="font-semibold block text-orange-700">Cổng thanh toán VNPay</span>
+                          <span className="text-xs text-orange-600">
+                            {actionType === "DEPOSIT" ? "Thanh toán giao dịch qua VNPay an toàn" : "Xử lý rút tiền thông qua cổng VNPay"}
+                          </span>
+                       </div>
+                    </label>
+                    {actionType === "DEPOSIT" && (
+                      <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition opacity-50 cursor-not-allowed">
                          <input 
                             type="radio" 
                             name="payMethod" 
                             value="SIMULATION"
-                            checked={paymentMethod === "SIMULATION"}
-                            onChange={() => setPaymentMethod("SIMULATION")}
+                            disabled
                             className="mr-3"
                          />
                          <div>
-                            <span className="font-semibold block">Nạp tiền mô phỏng</span>
-                            <span className="text-xs text-gray-500">Tự động cộng tiền (Không dùng tiền thật)</span>
+                            <span className="font-semibold block text-gray-500">Nạp tiền mô phỏng (Đã tắt)</span>
+                            <span className="text-xs text-gray-400">Tiền thật được yêu cầu trong luồng thực tế</span>
                          </div>
                       </label>
-                   </div>
-                </div>
-              )}
+                    )}
+                 </div>
+              </div>
 
               <div className="flex justify-end gap-3 mt-6">
                 <button 

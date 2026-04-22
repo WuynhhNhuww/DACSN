@@ -29,13 +29,20 @@ export default function AuthProvider({ children }) {
     await fetchProfile();
   };
 
+  const googleLogin = async (idToken) => {
+    const { googleLogin: googleLoginApi } = require("../api/authApi");
+    const res = await googleLoginApi(idToken);
+    localStorage.setItem("token", res.data.token);
+    await fetchProfile();
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, googleLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

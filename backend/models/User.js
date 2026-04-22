@@ -46,7 +46,11 @@ const userSchema = mongoose.Schema(
       index: true,
     },
 
-    password: { type: String, required: true },
+    password: { type: String, required: function() { return !this.googleId; } },
+
+    isVerified: { type: Boolean, default: false },
+    verificationToken: { type: String, default: null },
+    googleId: { type: String, default: null, unique: true, sparse: true },
 
     role: {
       type: String,
@@ -81,6 +85,8 @@ const userSchema = mongoose.Schema(
         default: "pending",
         index: true,
       },
+
+      isPremiumServiceRegistered: { type: Boolean, default: false },
 
       isApproved: { type: Boolean, default: false },
       approvedAt: { type: Date, default: null },

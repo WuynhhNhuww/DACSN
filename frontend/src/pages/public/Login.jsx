@@ -5,7 +5,7 @@ import { AuthContext } from "../../context/AuthContext";
 
 export default function Login() {
     const navigate = useNavigate();
-    const { login, user } = useContext(AuthContext) || {};
+    const { login, googleLogin, user } = useContext(AuthContext) || {};
     const [form, setForm] = useState({ email: "", password: "" });
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState("");
@@ -20,7 +20,39 @@ export default function Login() {
             else if (user.role === "seller") navigate("/seller/dashboard");
             else navigate("/home");
         }
-    }, [user]);
+    }, [user, navigate]);
+
+    // Google Login Logic
+    useEffect(() => {
+        /* global google */
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+            google.accounts.id.initialize({
+                client_id: "8991687553-rcqo1vr7t3iqvd4a5ts1ut092lhvhsd0.apps.googleusercontent.com",
+                callback: handleGoogleCallback,
+            });
+            google.accounts.id.renderButton(
+                document.getElementById("googleBtn"),
+                { theme: "outline", size: "large", width: "100%", text: "continue_with" }
+            );
+        };
+        document.body.appendChild(script);
+        return () => { document.body.removeChild(script); };
+    }, []);
+
+    const handleGoogleCallback = async (response) => {
+        setLoading(true);
+        try {
+            await googleLogin(response.credential);
+        } catch (err) {
+            setError(err?.response?.data?.message || "Google Login failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,7 +64,6 @@ export default function Login() {
         setLoading(true);
         try {
             await login(form.email, form.password);
-            // navigate handled by useEffect above after user loads
         } catch (err) {
             setError(err?.response?.data?.message || "Email hoặc mật khẩu không đúng.");
         } finally {
@@ -94,6 +125,8 @@ export default function Login() {
                 </form>
 
                 <div className="authDivider">Hoặc</div>
+
+                <div id="googleBtn" style={{ marginBottom: 20 }}></div>
 
                 <div className="authSwitch">
                     Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>

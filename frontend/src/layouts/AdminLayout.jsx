@@ -12,6 +12,7 @@ const PAGE_TITLES = {
     "/admin/vouchers": { title: "Mã Giảm Giá Toàn Sàn", sub: "Tạo và quản lý voucher platform" },
     "/admin/banners": { title: "Hệ thống Quảng cáo", sub: "Duyệt và theo dõi banner" },
     "/admin/complaints": { title: "Khiếu nại & Tranh chấp", sub: "Phân xử và giải quyết khiếu nại" },
+    "/admin/wallet": { title: "Ví ShopeePay", sub: "Quản lý số dư và giao dịch ví điện tử" },
 };
 
 export default function AdminLayout() {

@@ -9,19 +9,22 @@ export default function Register() {
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState("");
 
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
+        setSuccess("");
         if (!form.name || !form.email || !form.password) return setError("Vui lòng nhập đầy đủ thông tin.");
         if (form.password.length < 6) return setError("Mật khẩu tối thiểu 6 ký tự.");
         if (form.password !== form.confirm) return setError("Mật khẩu xác nhận không khớp.");
         setLoading(true);
         try {
             await axiosClient.post("/api/users/register", { name: form.name, email: form.email, password: form.password });
-            navigate("/login", { state: { registered: true } });
+            setSuccess("Đăng ký thành công! Vui lòng kiểm tra email của bạn để xác thực tài khoản trước khi đăng nhập.");
+            setForm({ name: "", email: "", password: "", confirm: "" });
         } catch (err) {
             setError(err?.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.");
         } finally {
@@ -40,6 +43,7 @@ export default function Register() {
                 <h2 className="authTitle">Tạo tài khoản</h2>
 
                 {error && <div className="alert alert-error">{error}</div>}
+                {success && <div className="alert alert-success" style={{ background: "#e1ffeb", color: "#28a745", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>{success}</div>}
 
                 <form onSubmit={handleSubmit}>
                     <div className="formGroup">

@@ -2,11 +2,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import {
     FaChartBar, FaBox, FaPlus, FaClipboardList,
-    FaTags, FaTachometerAlt, FaStore, FaExclamationTriangle, FaComments
+    FaTags, FaTachometerAlt, FaStore, FaExclamationTriangle, FaComments,
+    FaStar, FaWallet
 } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
-
-import { FaStar } from "react-icons/fa"; // Added FaStar import if not exist
 
 const LINKS = [
     { icon: <FaTachometerAlt />, label: "Dashboard", path: "/seller/dashboard" },
@@ -16,8 +15,10 @@ const LINKS = [
     { icon: <FaComments />, label: "Tin nhắn", path: "/seller/messages" },
     { icon: <FaStar />, label: "Đánh giá", path: "/seller/reviews" },
     { icon: <FaTags />, label: "Vouchers", path: "/seller/vouchers" },
+    { icon: <FaStore />, label: "Dịch vụ Xtra", path: "/seller/premium-service" },
     { icon: <FaChartBar />, label: "Quảng cáo", path: "/seller/ads" },
     { icon: <FaExclamationTriangle />, label: "Khiếu nại", path: "/seller/complaints" },
+    { icon: <FaWallet />, label: "Ví ShopeePay", path: "/seller/wallet" },
 ];
 
 export default function SellerSidebar() {

@@ -104,6 +104,19 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // 🎫 Voucher đã áp dụng
+    appliedVoucher: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Voucher",
+      default: null,
+    },
+
+    appliedFreeship: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Voucher",
+      default: null,
+    },
+
     // 📦 Trạng thái đơn
     status: {
       type: String,
@@ -139,6 +152,11 @@ const orderSchema = new mongoose.Schema(
     paidAt: {
       type: Date,
       default: null,
+    },
+
+    isRevenueDistributed: {
+      type: Boolean,
+      default: false,
     },
 
     // ❌ Hủy đơn

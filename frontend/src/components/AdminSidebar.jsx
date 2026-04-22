@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import {
     FaTachometerAlt, FaUsers, FaStore, FaExclamationTriangle,
-    FaBox, FaTag, FaBullhorn, FaShieldAlt
+    FaBox, FaTag, FaBullhorn, FaShieldAlt, FaWallet
 } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
 
@@ -18,6 +18,7 @@ export default function AdminSidebar() {
         { name: "Voucher", path: "/admin/vouchers", icon: <FaTag /> },
         { name: "Banner QC", path: "/admin/banners", icon: <FaBullhorn /> },
         { name: "Khiếu nại", path: "/admin/complaints", icon: <FaExclamationTriangle /> },
+        { name: "Ví ShopeePay", path: "/admin/wallet", icon: <FaWallet /> },
     ];
 
     return (

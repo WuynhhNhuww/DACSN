@@ -4,12 +4,14 @@ const Product = require("../models/productModel");
 const { createNotification } = require("./notificationController");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
+const Voucher = require("../models/voucherModel");
 const moment = require("moment");
 const qs = require("qs");
 const axios = require("axios");
 const { vnpaySortObject, buildSignData, createVnpaySignature, createMomoSignature } = require("../utils/payUtils");
 
 const PromotionItem = require("../models/promotionItemModel");
+const User = require("../models/User");
 // const Promotion = require("../models/promotionModel"); // không cần require trực tiếp vì populate
 
 // --- helper: tính giá cuối cùng cho 1 product tại thời điểm now ---
@@ -93,6 +95,139 @@ const calcPriceWithProductDiscount = (productDoc) => {
     return Math.max(0, productDoc.price - d.value);
   }
   return productDoc.price;
+};
+
+// --- helper: phân bổ doanh thu (90% seller, 10% admin) khi đơn hàng completed ---
+const distributeOrderRevenue = async (orderId) => {
+  try {
+    const order = await Order.findById(orderId)
+      .populate("orderItems.seller", "name sellerInfo")
+      .populate("orderItems.product", "category")
+      .populate("appliedVoucher")
+      .populate("appliedFreeship");
+
+    if (!order || order.isRevenueDistributed) return;
+
+    const adminUser = await User.findOne({ role: "admin" }).sort({ createdAt: 1 });
+    if (!adminUser) return;
+
+    let adminWallet = await Wallet.findOne({ user: adminUser._id });
+    if (!adminWallet) {
+      adminWallet = await Wallet.create({ user: adminUser._id, balance: 0, frozenBalance: 0 });
+    }
+
+    // 1. Phí vận chuyển: Về Ví Admin (để Admin trả cho bên vận chuyển)
+    if (order.shippingFee > 0) {
+      adminWallet.balance += order.shippingFee;
+      await adminWallet.save();
+      await Transaction.create({
+        wallet: adminWallet._id,
+        amount: order.shippingFee,
+        type: "SYSTEM_COMMISSION",
+        status: "COMPLETED",
+        referenceOrder: order._id,
+        description: `Thu phí vận chuyển từ đơn hàng ${order._id}`,
+      });
+    }
+
+    // 2. Xử lý Voucher Toàn sàn (Admin chịu phí)
+    if (order.appliedVoucher && order.appliedVoucher.scope === "platform" && order.discountAmount > 0) {
+      adminWallet.balance -= order.discountAmount;
+      await adminWallet.save();
+      await Transaction.create({
+        wallet: adminWallet._id,
+        amount: -order.discountAmount,
+        type: "SYSTEM_COMMISSION",
+        status: "COMPLETED",
+        referenceOrder: order._id,
+        description: `Chi trả Voucher Toàn sàn cho đơn hàng ${order._id}`,
+      });
+    }
+
+    // 3. Xử lý Freeship (Admin chịu 50%, Shop chịu 50%)
+    let freeshipDeductionForEachSeller = 0;
+    if (order.appliedFreeship && order.shippingFee > 0) {
+      const adminFreeshipShare = order.shippingFee * 0.5;
+      adminWallet.balance -= adminFreeshipShare;
+      await adminWallet.save();
+      await Transaction.create({
+        wallet: adminWallet._id,
+        amount: -adminFreeshipShare,
+        type: "SYSTEM_COMMISSION",
+        status: "COMPLETED",
+        referenceOrder: order._id,
+        description: `Chi trả 50% phí Freeship cho đơn hàng ${order._id}`,
+      });
+      // 50% còn lại sẽ trừ vào doanh thu của các seller trong đơn
+      freeshipDeductionForEachSeller = order.shippingFee * 0.5;
+    }
+
+    // 4. Phân bổ cho từng Seller
+    for (const item of order.orderItems) {
+      if (!item.seller) continue;
+
+      const category = item.product?.category || "";
+      const isHomeAppliance = category.match(/gia d[uụ]ng/i);
+      const baseRate = isHomeAppliance ? 0.08 : 0.10;
+      const isPremium = item.seller.sellerInfo?.isPremiumServiceRegistered || false;
+      const premiumRate = isPremium ? 0.02 : 0;
+      const totalCommissionRate = baseRate + premiumRate;
+
+      // Tính doanh thu trước khi trừ phí Freeship/Voucher Shop
+      let itemFinalLineTotal = item.lineTotal;
+      let shopVoucherDeduction = 0;
+
+      // Nếu là Voucher của Shop -> Trừ vào doanh thu của Shop đó
+      if (order.appliedVoucher && order.appliedVoucher.scope === "shop" && order.appliedVoucher.sellerId?.toString() === item.seller._id.toString()) {
+        shopVoucherDeduction = order.discountAmount;
+        itemFinalLineTotal -= shopVoucherDeduction;
+      }
+
+      const adminCommission = Math.floor(itemFinalLineTotal * totalCommissionRate);
+      let sellerRevenue = itemFinalLineTotal - adminCommission;
+
+      // Trừ phí Freeship (tỷ lệ theo giá trị hàng của seller đó trong đơn)
+      const sellerFreeshipShare = order.itemsPrice > 0 ? Math.floor((item.lineTotal / order.itemsPrice) * freeshipDeductionForEachSeller) : 0;
+      sellerRevenue -= sellerFreeshipShare;
+
+      const sellerShopName = item.seller.sellerInfo?.shopName || item.seller.name;
+
+      // --- Cộng tiền cho Seller ---
+      let sellerWallet = await Wallet.findOne({ user: item.seller._id });
+      if (!sellerWallet) {
+        sellerWallet = await Wallet.create({ user: item.seller._id, balance: 0, frozenBalance: 0 });
+      }
+      sellerWallet.balance += sellerRevenue;
+      await sellerWallet.save();
+
+      await Transaction.create({
+        wallet: sellerWallet._id,
+        amount: sellerRevenue,
+        type: "SELLER_REVENUE",
+        status: "COMPLETED",
+        referenceOrder: order._id,
+        description: `Doanh thu SP: ${item.name} (Đã trừ ${totalCommissionRate * 100}% phí sàn${shopVoucherDeduction ? `, trừ ${shopVoucherDeduction} Voucher Shop` : ""}${sellerFreeshipShare ? `, trừ ${sellerFreeshipShare} (50% Freeship)` : ""})`,
+      });
+
+      // --- Cộng tiền hoa hồng cho Admin ---
+      adminWallet.balance += adminCommission;
+      await adminWallet.save();
+
+      await Transaction.create({
+        wallet: adminWallet._id,
+        amount: adminCommission,
+        type: "SYSTEM_COMMISSION",
+        status: "COMPLETED",
+        referenceOrder: order._id,
+        description: `Hoa hồng ${totalCommissionRate * 100}% từ shop ${sellerShopName} (SP: ${item.name})`,
+      });
+    }
+
+    order.isRevenueDistributed = true;
+    await order.save();
+  } catch (error) {
+    console.error("Lỗi phân bổ doanh thu:", error);
+  }
 };
 
 // --- CREATE ORDER ---
@@ -274,10 +409,26 @@ exports.createOrder = async (req, res) => {
       totalPrice,
 
       paymentMethod,
+      appliedVoucher: voucherId || null,
+      appliedFreeship: freeshipId || null,
       isPaid: paymentMethod === "WALLET",
       paidAt: paymentMethod === "WALLET" ? new Date() : null,
       status: paymentMethod === "COD" ? "pending_confirmation" : (paymentMethod === "WALLET" ? "paid" : "pending_payment"),
     });
+
+    // 4.1) Cập nhật trạng thái đã dùng của Voucher (để tránh lạm dụng và đếm lượt)
+    if (voucherId) {
+      await Voucher.updateOne(
+        { _id: voucherId },
+        { $inc: { usedCount: 1 }, $addToSet: { usedByUsers: req.user._id } }
+      );
+    }
+    if (freeshipId) {
+      await Voucher.updateOne(
+        { _id: freeshipId },
+        { $inc: { usedCount: 1 }, $addToSet: { usedByUsers: req.user._id } }
+      );
+    }
 
     // 4.5) Xử lý VNPay (VNPAY)
     let paymentUrl = "";
@@ -503,6 +654,10 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
+    if (status === "completed") {
+      await distributeOrderRevenue(order._id);
+    }
+
     res.json(order);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -557,6 +712,8 @@ exports.confirmReceipt = async (req, res) => {
     order.confirmReceived = true;
     order.confirmedReceivedAt = new Date();
     await order.save();
+
+    await distributeOrderRevenue(order._id);
 
     res.json(order);
   } catch (error) {

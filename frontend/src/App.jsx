@@ -11,6 +11,7 @@ import Register from "./pages/public/Register";
 import ProductList from "./pages/public/ProductList";
 import ProductDetail from "./pages/public/ProductDetail";
 import ShopDetail from "./pages/public/ShopDetail";
+import VerifyEmail from "./pages/public/VerifyEmail";
 
 // Buyer
 import Cart from "./pages/buyer/Cart";
@@ -20,6 +21,7 @@ import OrderDetail from "./pages/buyer/OrderDetail";
 import Profile from "./pages/buyer/Profile";
 import Wishlist from "./pages/buyer/Wishlist";
 import Wallet from "./pages/buyer/Wallet";
+import SharedWallet from "./pages/shared/Wallet";
 
 // Seller
 import SellerDashboard from "./pages/seller/Dashboard";
@@ -32,6 +34,7 @@ import SellerVouchers from "./pages/seller/Vouchers";
 import SellerComplaints from "./pages/seller/Complaints";
 import SellerMessages from "./pages/seller/Messages";
 import SellerReviews from "./pages/seller/Reviews";
+import PremiumService from "./pages/seller/PremiumService";
 
 // Admin
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -68,6 +71,7 @@ export default function App() {
             <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/products" element={<ProductList />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/shop/:id" element={<ShopDetail />} />
@@ -79,11 +83,11 @@ export default function App() {
             <Route path="/buyer/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
             <Route path="/buyer/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/buyer/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-            <Route path="/buyer/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/buyer/wallet" element={<ProtectedRoute><SharedWallet /></ProtectedRoute>} />
             <Route path="/buyer/wallet/vnpay-return" element={<ProtectedRoute><VNPayReturn /></ProtectedRoute>} />
             <Route path="/buyer/orders/vnpay-return" element={<ProtectedRoute><OrderVNPayReturn /></ProtectedRoute>} />
             <Route path="/buyer/orders/momo-return" element={<ProtectedRoute><OrderMomoReturn /></ProtectedRoute>} />
-            <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><SharedWallet /></ProtectedRoute>} />
 
           </Route>
 
@@ -99,6 +103,8 @@ export default function App() {
             <Route path="complaints" element={<SellerComplaints />} />
             <Route path="messages" element={<SellerMessages />} />
             <Route path="reviews" element={<SellerReviews />} />
+            <Route path="wallet" element={<SharedWallet />} />
+            <Route path="premium-service" element={<PremiumService />} />
           </Route>
 
           {/* Admin */}
@@ -110,6 +116,7 @@ export default function App() {
             <Route path="vouchers" element={<AdminVouchers />} />
             <Route path="banners" element={<AdminBanners />} />
             <Route path="complaints" element={<AdminComplaints />} />
+            <Route path="wallet" element={<SharedWallet />} />
           </Route>
         </Routes>
       </Router>
