@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import ShopeeHeader from "./components/ShopeeHeader";
+import ChatAI from "./components/ChatAI";
 import AuthProvider from "./context/AuthContext";
 import "./styles/shopee.css";
 import "./styles/admin-seller.css";
@@ -22,6 +23,7 @@ import Profile from "./pages/buyer/Profile";
 import Wishlist from "./pages/buyer/Wishlist";
 import Wallet from "./pages/buyer/Wallet";
 import SharedWallet from "./pages/shared/Wallet";
+import BuyerMessages from "./pages/buyer/Messages";
 
 // Seller
 import SellerDashboard from "./pages/seller/Dashboard";
@@ -57,6 +59,7 @@ const MainLayout = () => (
   <>
     <ShopeeHeader />
     <Outlet />
+    <ChatAI />
   </>
 );
 
@@ -82,6 +85,7 @@ export default function App() {
             <Route path="/buyer/orders" element={<ProtectedRoute><MyOrders /></ProtectedRoute>} />
             <Route path="/buyer/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
             <Route path="/buyer/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/buyer/messages" element={<ProtectedRoute><BuyerMessages /></ProtectedRoute>} />
             <Route path="/buyer/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/buyer/wallet" element={<ProtectedRoute><SharedWallet /></ProtectedRoute>} />
             <Route path="/buyer/wallet/vnpay-return" element={<ProtectedRoute><VNPayReturn /></ProtectedRoute>} />

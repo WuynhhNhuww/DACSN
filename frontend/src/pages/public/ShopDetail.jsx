@@ -96,7 +96,7 @@ export default function ShopDetail() {
                             <FaStore />
                         </div>
                         <h1 style={{ fontSize: "1.5rem", fontWeight: 800, margin: "0 0 8px 0", textAlign: "center" }}>{shop.shopName}</h1>
-                        <p style={{ opacity: 0.9, textAlign: "center", margin: 0, fontSize: "0.9rem", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{shop.shopDescription || "Cửa hàng uy tín trên Shopee Mini"}</p>
+                        <p style={{ opacity: 0.9, textAlign: "center", margin: 0, fontSize: "0.9rem", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{shop.shopDescription || "Cửa hàng uy tín trên WPN Store"}</p>
                     </div>
 
                     <div style={{ flex: 1, padding: 32, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px 40px", alignContent: "center" }}>

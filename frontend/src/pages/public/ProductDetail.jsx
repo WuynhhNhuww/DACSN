@@ -5,6 +5,7 @@ import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 import ShopeeFooter from "../../components/ShopeeFooter";
 import { toggleWishlist, getWishlist } from "../../api/userApi";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `${Number(n || 0).toLocaleString("vi-VN")}₫`;
 
@@ -29,11 +30,13 @@ export default function ProductDetail() {
     const [reviewImage, setReviewImage] = useState("");
     const [submittingReview, setSubmittingReview] = useState(false);
 
-    // Chat states
     const [chatModal, setChatModal] = useState(false);
     const [messages, setMessages] = useState([]);
     const [newMsg, setNewMsg] = useState("");
     const messagesEndRef = useRef(null);
+
+    // Variants
+    const [selectedVariant, setSelectedVariant] = useState(null);
 
     useEffect(() => {
         const fetchProductDetail = async () => {
@@ -45,6 +48,12 @@ export default function ProductDetail() {
 
                 setProduct(productRes.data);
                 setReviews(reviewRes.data);
+
+                // Log browse history for AI recommendations
+                const history = JSON.parse(localStorage.getItem("wpn_browse_history") || "[]");
+                const newItem = { id: productRes.data._id, name: productRes.data.name, category: productRes.data.category };
+                const filtered = history.filter(h => h.id !== productRes.data._id).slice(-9); // Keep unique last 10
+                localStorage.setItem("wpn_browse_history", JSON.stringify([...filtered, newItem]));
             } catch (err) {
                 console.error("Lỗi tải chi tiết sản phẩm:", err);
                 setError("Không tìm thấy sản phẩm.");
@@ -67,9 +76,21 @@ export default function ProductDetail() {
     const addToCart = async () => {
         if (!user) { navigate("/login"); return false; }
         if (user.role === "seller" || user.role === "admin") return false;
+        
+        if (product.variants?.length > 0 && !selectedVariant) {
+            alert("Vui lòng chọn phân loại hàng");
+            return false;
+        }
+
+        const fp = product.finalPrice ?? product.price;
+        const pct = (product.finalPrice && product.finalPrice < product.price) ? Math.round((1 - product.finalPrice / product.price) * 100) : 0;
 
         try {
-            await axiosClient.post("/api/cart", { productId: id, quantity: qty });
+            await axiosClient.post("/api/cart", { 
+                productId: id, 
+                quantity: qty,
+                variantName: selectedVariant?.name || ""
+            });
             window.dispatchEvent(new Event("cart:updated"));
             setAdded(true);
             setTimeout(() => setAdded(false), 2000);
@@ -77,13 +98,25 @@ export default function ProductDetail() {
         } catch (err) {
             const raw = localStorage.getItem("modern_store_cart");
             const cart = raw ? JSON.parse(raw) : [];
-            const idx = cart.findIndex(x => x.id === id);
-            if (idx > -1) cart[idx].qty = Math.min(99, cart[idx].qty + qty);
-            else cart.push({ id, name: product.name, price: product.finalPrice ?? product.price, qty, image: product.images?.[0] });
+            const idx = cart.findIndex(x => (x.id === id && x.variantName === (selectedVariant?.name || "")));
+            
+            if (idx > -1) {
+                cart[idx].qty = Math.min(99, cart[idx].qty + qty);
+            } else {
+                cart.push({ 
+                    id, 
+                    name: product.name, 
+                    price: selectedVariant ? selectedVariant.price * (1 - pct/100) : (product.finalPrice ?? product.price), 
+                    qty, 
+                    image: selectedVariant?.image || product.images?.[0],
+                    variantName: selectedVariant?.name || ""
+                });
+            }
             localStorage.setItem("modern_store_cart", JSON.stringify(cart));
             window.dispatchEvent(new Event("cart:updated"));
             setAdded(true);
             setTimeout(() => setAdded(false), 2000);
+            return true;
         }
     };
 
@@ -132,6 +165,23 @@ export default function ProductDetail() {
             axiosClient.get(`/api/chat/${product.seller._id}`)
                 .then(res => { setMessages(res.data || []); scrollToBottom(); })
                 .catch(console.error);
+
+            // Socket: join để nhận tin nhắn
+            socket.emit("join", user._id);
+
+            const handleNewMessage = (msg) => {
+                // Chỉ nhận tin nhắn từ người đang chat cùng (hoặc mình là người nhận)
+                if (msg.sender === product.seller._id || msg.receiver === product.seller._id) {
+                    setMessages(prev => {
+                        if (prev.some(m => m._id === msg._id)) return prev;
+                        return [...prev, msg];
+                    });
+                    scrollToBottom();
+                }
+            };
+
+            socket.on("new_message", handleNewMessage);
+            return () => socket.off("new_message", handleNewMessage);
         }
     }, [chatModal, product?.seller?._id, user]);
 
@@ -174,10 +224,11 @@ export default function ProductDetail() {
             const selectedItems = [{
                 id: id,
                 name: product.name,
-                price: fp,
-                image: images[mainImg] || "",
+                price: selectedVariant ? selectedVariant.price * (1 - pct/100) : (product.finalPrice ?? product.price), 
+                image: selectedVariant?.image || images[mainImg] || "",
                 qty: qty,
                 seller: product.seller,
+                variantName: selectedVariant?.name || ""
             }];
             navigate("/buyer/checkout", { state: { selectedItems } });
         }
@@ -227,9 +278,43 @@ export default function ProductDetail() {
                         </div>
 
                         <div className="pdPriceBox" style={{ background: "#f8fafc", padding: "20px 24px", borderRadius: 16, marginBottom: 24 }}>
-                            {hasDiscount && <span className="pdOldPrice" style={{ fontSize: 18 }}>{fmt(product.price)}</span>}
-                            <span className="pdPrice" style={{ color: "var(--primary)", fontSize: 32, fontWeight: 800 }}>{fmt(fp)}</span>
+                            {hasDiscount && <span className="pdOldPrice" style={{ fontSize: 18 }}>{fmt(selectedVariant ? selectedVariant.price : product.price)}</span>}
+                            <span className="pdPrice" style={{ color: "var(--primary)", fontSize: 32, fontWeight: 800 }}>{fmt(selectedVariant ? selectedVariant.price * (1 - pct/100) : fp)}</span>
                         </div>
+
+                        {/* VARIANTS UI */}
+                        {product.variants && product.variants.length > 0 && (
+                            <div style={{ marginBottom: 24 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 12 }}>Phân loại</div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                    {product.variants.map((v, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => {
+                                                setSelectedVariant(v);
+                                                if (v.image) {
+                                                    const imgIndex = images.indexOf(v.image);
+                                                    if (imgIndex > -1) setMainImg(imgIndex);
+                                                }
+                                            }}
+                                            style={{
+                                                padding: "8px 16px",
+                                                borderRadius: 8,
+                                                border: `1px solid ${selectedVariant?.name === v.name ? "var(--primary)" : "var(--line)"}`,
+                                                background: selectedVariant?.name === v.name ? "rgba(79, 70, 229, 0.05)" : "#fff",
+                                                color: selectedVariant?.name === v.name ? "var(--primary)" : "var(--text)",
+                                                cursor: "pointer",
+                                                fontWeight: selectedVariant?.name === v.name ? 700 : 400,
+                                                fontSize: 14,
+                                                transition: "0.2s"
+                                            }}
+                                        >
+                                            {v.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Features */}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
@@ -275,8 +360,11 @@ export default function ProductDetail() {
                             <div className="pdQtyControl" style={{ border: "1px solid var(--line)", borderRadius: 12 }}>
                                 <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ padding: "8px 16px" }}>−</button>
                                 <span style={{ padding: "8px 20px", fontWeight: 700 }}>{qty}</span>
-                                <button onClick={() => setQty(q => Math.min(product.stock || 99, q + 1))} style={{ padding: "8px 16px" }}>+</button>
+                                <button onClick={() => setQty(q => Math.min(selectedVariant ? selectedVariant.stock : (product.stock || 99), q + 1))} style={{ padding: "8px 16px" }}>+</button>
                             </div>
+                            <span style={{ marginLeft: 16, fontSize: 13, color: "var(--text-light)" }}>
+                                {selectedVariant ? `${selectedVariant.stock} sản phẩm có sẵn` : `${product.stock} sản phẩm có sẵn`}
+                            </span>
                         </div>
 
                         {added && <div className="alert alert-success" style={{ marginBottom: 12, borderRadius: 12 }}>✓ Đã thêm vào giỏ hàng!</div>}

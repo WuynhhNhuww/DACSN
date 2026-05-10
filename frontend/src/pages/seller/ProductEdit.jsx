@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FaSave, FaArrowLeft, FaImage } from "react-icons/fa";
+import { FaSave, FaArrowLeft, FaImage, FaMagic } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -14,6 +14,7 @@ export default function ProductEdit() {
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [generating, setGenerating] = useState(false);
 
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
@@ -25,6 +26,7 @@ export default function ProductEdit() {
                     category: p.category || CATEGORIES[0], price: p.price || "",
                     stock: p.stock || 0, status: p.status || "active",
                     images: p.images?.length ? p.images : [""],
+                    variants: p.variants || [],
                 });
             })
             .catch(() => setError("Không tìm thấy sản phẩm."))
@@ -61,12 +63,29 @@ export default function ProductEdit() {
                 category: form.category, price: Number(form.price),
                 stock: Number(form.stock), status: form.status,
                 images: form.images.filter(Boolean),
+                variants: form.variants.map(v => ({ ...v, price: Number(v.price), stock: Number(v.stock) })),
             });
             navigate("/seller/products");
         } catch (err) {
             setError(err?.response?.data?.message || "Cập nhật thất bại.");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAIGenerate = async () => {
+        if (!form.name || form.name.length < 5) return alert("Vui lòng nhập tên sản phẩm rõ ràng hơn để AI viết mô tả chính xác.");
+        setGenerating(true);
+        try {
+            const res = await axiosClient.post("/api/ai/generate-description", {
+                productName: form.name,
+                category: form.category
+            });
+            set("description", res.data.description);
+        } catch (err) {
+            alert("Lỗi khi kết nối với AI Assistant.");
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -96,8 +115,13 @@ export default function ProductEdit() {
                                 <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} />
                             </div>
                             <div style={{ marginBottom: 20 }}>
-                                <label style={labelStyle}>Mô tả chi tiết <span style={{ color: "var(--as-danger)" }}>*</span></label>
-                                <textarea style={{ ...inputStyle, resize: "vertical" }} rows={6} value={form.description} onChange={e => set("description", e.target.value)}></textarea>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                    <label style={{ ...labelStyle, marginBottom: 0 }}>Mô tả chi tiết <span style={{ color: "var(--as-danger)" }}>*</span></label>
+                                    <button type="button" onClick={handleAIGenerate} disabled={generating} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "rgba(79, 70, 229, 0.1)", color: "var(--as-primary)", border: "1px solid var(--as-primary)", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                                        <FaMagic /> {generating ? "Đang viết..." : "AI bổ sung mô tả"}
+                                    </button>
+                                </div>
+                                <textarea style={{ ...inputStyle, resize: "vertical" }} rows={8} value={form.description} onChange={e => set("description", e.target.value)}></textarea>
                             </div>
                             <div>
                                 <label style={labelStyle}>Danh mục ngành hàng</label>
@@ -126,6 +150,36 @@ export default function ProductEdit() {
                                 {form.images.length < 4 && (
                                     <button type="button" className="as-btn as-btn-outline" style={{ padding: "8px", borderStyle: "dashed" }} onClick={() => set("images", [...form.images, ""])}>+ Thêm ô nhập ảnh</button>
                                 )}
+                            </div>
+                        </div>
+
+                        <div className="as-card" style={{ padding: 32 }}>
+                            <h3 style={{ margin: "0 0 24px 0", fontSize: "1.2rem", borderBottom: "1px solid var(--as-border)", paddingBottom: 16 }}>Phân loại hàng (Variants)</h3>
+                            <div style={{ marginBottom: 16, color: "var(--as-text-muted)", fontSize: "0.9rem" }}>Thêm các lựa chọn như Màu sắc, Kích cỡ... Nếu có phân loại, giá và kho sẽ theo phân loại.</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                {form.variants.map((v, i) => (
+                                    <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 40px", gap: 12, alignItems: "center", background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid var(--as-border)" }}>
+                                        <input style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Tên loại (Vd: Màu Đỏ, Size M)" value={v.name} onChange={e => {
+                                            const next = [...form.variants];
+                                            next[i].name = e.target.value;
+                                            set("variants", next);
+                                        }} />
+                                        <input type="number" style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Giá" value={v.price} onChange={e => {
+                                            const next = [...form.variants];
+                                            next[i].price = e.target.value;
+                                            set("variants", next);
+                                        }} />
+                                        <input type="number" style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Kho" value={v.stock} onChange={e => {
+                                            const next = [...form.variants];
+                                            next[i].stock = e.target.value;
+                                            set("variants", next);
+                                        }} />
+                                        <button type="button" style={{ border: "none", background: "none", color: "var(--as-danger)", cursor: "pointer" }} onClick={() => {
+                                            set("variants", form.variants.filter((_, idx) => idx !== i));
+                                        }}>✕</button>
+                                    </div>
+                                ))}
+                                <button type="button" className="as-btn as-btn-outline" style={{ padding: "10px", borderStyle: "dashed" }} onClick={() => set("variants", [...form.variants, { name: "", price: form.price, stock: 10 }])}>+ Thêm phân loại hàng</button>
                             </div>
                         </div>
                     </div>

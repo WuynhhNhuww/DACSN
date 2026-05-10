@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaPlus, FaEdit, FaTrash, FaSearch } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -17,6 +18,16 @@ export default function SellerProducts() {
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
         load();
+    }, [user]);
+
+    useEffect(() => {
+        if (user) {
+            socket.emit("join", user._id);
+            socket.on("product_status_updated", load);
+            return () => {
+                socket.off("product_status_updated", load);
+            };
+        }
     }, [user]);
 
     const load = () => {

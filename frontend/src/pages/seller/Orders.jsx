@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaCommentDots, FaTimes, FaPaperPlane } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -41,11 +42,26 @@ export default function SellerOrders() {
 
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
-        axiosClient.get(user.role === "admin" ? "/api/orders" : "/api/orders/seller-orders")
-            .then(res => setOrders(res.data || []))
-            .catch(() => setOrders([]))
-            .finally(() => setLoading(false));
-    }, [user]);
+        
+        const fetchOrders = () => {
+            axiosClient.get(user.role === "admin" ? "/api/orders" : "/api/orders/seller-orders")
+                .then(res => setOrders(res.data || []))
+                .catch(() => setOrders([]))
+                .finally(() => setLoading(false));
+        };
+        
+        fetchOrders();
+
+        // Real-time socket
+        socket.emit("join", user._id);
+        socket.on("new_order", fetchOrders);
+        socket.on("order_updated", fetchOrders);
+
+        return () => {
+            socket.off("new_order", fetchOrders);
+            socket.off("order_updated", fetchOrders);
+        };
+    }, [user, navigate]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,6 +72,18 @@ export default function SellerOrders() {
             axiosClient.get(`/api/chat/${chatModal.buyerId}`)
                 .then(res => { setMessages(res.data || []); scrollToBottom(); })
                 .catch(console.error);
+
+            const handleNewMessage = (msg) => {
+                if (msg.sender === chatModal.buyerId || msg.receiver === chatModal.buyerId) {
+                    setMessages(prev => {
+                        if (prev.some(m => m._id === msg._id)) return prev;
+                        return [...prev, msg];
+                    });
+                    setTimeout(scrollToBottom, 100);
+                }
+            };
+            socket.on("new_message", handleNewMessage);
+            return () => socket.off("new_message", handleNewMessage);
         }
     }, [chatModal]);
 
@@ -125,12 +153,17 @@ export default function SellerOrders() {
                                         </td>
                                         <td>
                                             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                                {order.orderItems?.slice(0, 2).map((it, i) => (
-                                                    <div key={i} style={{ fontSize: "0.9rem", color: "var(--as-text)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                                                        <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{it.name}</span>
-                                                        <span style={{ fontWeight: 600, color: "var(--as-primary)", background: "rgba(0,0,0,0.03)", padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>x{it.qty}</span>
-                                                    </div>
-                                                ))}
+                                                 {order.orderItems?.slice(0, 2).map((it, i) => (
+                                                     <div key={i} style={{ fontSize: "0.9rem", color: "var(--as-text)", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                                                         <div style={{ display: "flex", flexDirection: "column" }}>
+                                                            <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{it.name}</span>
+                                                            {it.variantName && (
+                                                                <span style={{ fontSize: "0.75rem", color: "var(--as-primary)", fontWeight: 600 }}>Phân loại: {it.variantName}</span>
+                                                            )}
+                                                         </div>
+                                                         <span style={{ fontWeight: 600, color: "var(--as-primary)", background: "rgba(0,0,0,0.03)", padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>x{it.qty}</span>
+                                                     </div>
+                                                 ))}
                                                 {order.orderItems?.length > 2 && (
                                                     <div style={{ fontSize: "0.8rem", color: "var(--as-text-muted)", fontStyle: "italic", marginTop: 2 }}>+{order.orderItems.length - 2} sản phẩm khác...</div>
                                                 )}

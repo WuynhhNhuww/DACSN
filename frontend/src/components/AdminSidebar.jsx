@@ -1,24 +1,54 @@
 import { Link, useLocation } from "react-router-dom";
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 import {
     FaTachometerAlt, FaUsers, FaStore, FaExclamationTriangle,
     FaBox, FaTag, FaBullhorn, FaShieldAlt, FaWallet
 } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
+import axiosClient from "../api/axiosClient";
+import socket from "../utils/socket";
 
 export default function AdminSidebar() {
     const { pathname } = useLocation();
     const { user } = useContext(AuthContext) || {};
+    
+    const [badges, setBadges] = useState({
+        sellers: 0,
+        products: 0,
+        banners: 0,
+        complaints: 0
+    });
+
+    useEffect(() => {
+        if (!user || user.role !== "admin") return;
+        
+        socket.emit("join", user._id);
+        
+        const fetchBadges = async () => {
+            try {
+                const res = await axiosClient.get("/api/badges/admin");
+                setBadges(res.data);
+            } catch (err) {}
+        };
+        fetchBadges();
+
+        const handleUpdate = () => fetchBadges();
+        socket.on("admin_badge_update", handleUpdate);
+        
+        return () => {
+            socket.off("admin_badge_update", handleUpdate);
+        };
+    }, [user]);
 
     const links = [
         { name: "Tổng quan", path: "/admin/dashboard", icon: <FaTachometerAlt /> },
         { name: "Người dùng", path: "/admin/users", icon: <FaUsers /> },
-        { name: "Người bán", path: "/admin/sellers", icon: <FaStore /> },
-        { name: "Sản phẩm", path: "/admin/products", icon: <FaBox /> },
+        { name: "Người bán", path: "/admin/sellers", icon: <FaStore />, badge: badges.sellers },
+        { name: "Sản phẩm", path: "/admin/products", icon: <FaBox />, badge: badges.products },
         { name: "Voucher", path: "/admin/vouchers", icon: <FaTag /> },
-        { name: "Banner QC", path: "/admin/banners", icon: <FaBullhorn /> },
-        { name: "Khiếu nại", path: "/admin/complaints", icon: <FaExclamationTriangle /> },
-        { name: "Ví ShopeePay", path: "/admin/wallet", icon: <FaWallet /> },
+        { name: "Banner QC", path: "/admin/banners", icon: <FaBullhorn />, badge: badges.banners },
+        { name: "Khiếu nại", path: "/admin/complaints", icon: <FaExclamationTriangle />, badge: badges.complaints },
+        { name: "Ví WNPPAY", path: "/admin/wallet", icon: <FaWallet /> },
     ];
 
     return (
@@ -47,7 +77,21 @@ export default function AdminSidebar() {
                         >
                             <div className="as-nav-indicator" />
                             <span className="icon">{lx.icon}</span>
-                            <span>{lx.name}</span>
+                            <span style={{ flex: 1 }}>{lx.name}</span>
+                            {lx.badge > 0 && (
+                                <span style={{
+                                    background: "var(--danger)",
+                                    color: "white",
+                                    fontSize: "0.75rem",
+                                    fontWeight: "bold",
+                                    padding: "2px 6px",
+                                    borderRadius: "10px",
+                                    minWidth: "20px",
+                                    textAlign: "center"
+                                }}>
+                                    {lx.badge > 9 ? "9+" : lx.badge}
+                                </span>
+                            )}
                         </Link>
                     );
                 })}

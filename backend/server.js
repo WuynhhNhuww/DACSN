@@ -27,6 +27,8 @@ const bannerRoutes = require("./routes/bannerRoutes");
 const complaintRoutes = require("./routes/complaintRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const walletRoutes = require("./routes/walletRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+const badgeRoutes = require("./routes/badgeRoutes");
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
@@ -42,6 +44,8 @@ app.use("/api/banners", bannerRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/wallets", walletRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/badges", badgeRoutes);
 app.get("/", (req, res) => res.send("Shopee Mini API Running..."));
 
 // 404
@@ -54,4 +58,40 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const httpServer = require("http").createServer(app);
+const io = require("socket.io")(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Map để lưu trữ userId -> socketId
+global.userSockets = new Map();
+
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  socket.on("join", (userId) => {
+    if (userId) {
+      global.userSockets.set(userId.toString(), socket.id);
+      console.log(`User ${userId} joined with socket ${socket.id}`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    // Tìm và xóa mapping khi ngắt kết nối
+    for (let [userId, socketId] of global.userSockets.entries()) {
+      if (socketId === socket.id) {
+        global.userSockets.delete(userId);
+        break;
+      }
+    }
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+// Gắn io vào app để dùng ở controllers
+app.set("io", io);
+
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

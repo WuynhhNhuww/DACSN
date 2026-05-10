@@ -9,11 +9,18 @@ export default function SellerComplaints() {
     const [loading, setLoading] = useState(true);
     const [responding, setResponding] = useState(null); // id of complaint
     const [responseMsg, setResponseMsg] = useState("");
-    const [proposedRefundAmount, setProposedRefundAmount] = useState(0);
+    const [proposedRefundAmount, setProposedRefundAmount] = useState("");
 
     useEffect(() => {
         if (!user) return;
         loadComplaints();
+        
+        socket.emit("join", user._id);
+        socket.on("complaint_updated", loadComplaints);
+        
+        return () => {
+            socket.off("complaint_updated", loadComplaints);
+        };
     }, [user]);
 
     const loadComplaints = async () => {
@@ -38,7 +45,7 @@ export default function SellerComplaints() {
             });
             setResponding(null);
             setResponseMsg("");
-            setProposedRefundAmount(0);
+            setProposedRefundAmount("");
             loadComplaints();
         } catch (err) {
             alert(err?.response?.data?.message || "Lỗi khi phản hồi");
@@ -147,12 +154,12 @@ export default function SellerComplaints() {
                                 style={{ width: "100%" }}
                                 placeholder="Ví dụ: 50000"
                                 value={proposedRefundAmount}
-                                onChange={e => setProposedRefundAmount(Number(e.target.value))}
+                                onChange={e => setProposedRefundAmount(e.target.value)}
                             />
                             <p style={{ fontSize: 11, color: "var(--as-text-muted)", marginTop: 6 }}>Nếu không chấp nhận đền bù, hãy nhập 0. Khách hàng sẽ xem và có quyền nhờ Admin can thiệp nếu không đạt được thỏa thuận.</p>
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
-                            <button className="as-btn as-btn-outline" onClick={() => { setResponding(null); setResponseMsg(""); setProposedRefundAmount(0); }}>Hủy</button>
+                            <button className="as-btn as-btn-outline" onClick={() => { setResponding(null); setResponseMsg(""); setProposedRefundAmount(""); }}>Hủy</button>
                             <button className="as-btn as-btn-primary" onClick={() => handleRespond(responding)}>Gửi đề xuất</button>
                         </div>
                     </div>

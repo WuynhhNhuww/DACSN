@@ -9,6 +9,7 @@ import {
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 import ShopeeFooter from "../../components/ShopeeFooter";
+import socket from "../../utils/socket";
 
 /* ─── DANH MỤC NGÀNH HÀNG ─── */
 const CATEGORIES = [
@@ -178,6 +179,7 @@ export default function Profile() {
     const [showSellerModal, setShowSellerModal] = useState(false);
     const [msg, setMsg] = useState({ text: "", type: "" });
     const [saving, setSaving] = useState(false);
+    const [badges, setBadges] = useState({ orders: 0, cart: 0, wishlist: 0 });
 
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
@@ -188,6 +190,16 @@ export default function Profile() {
             gender: user.gender || "",
             dob: user.dob ? user.dob.slice(0, 10) : "",
         });
+
+        const fetchBadges = () => {
+            axiosClient.get("/api/badges/buyer")
+                .then(res => setBadges(res.data))
+                .catch(console.error);
+        };
+        fetchBadges();
+
+        socket.on("buyer_badge_update", fetchBadges);
+        return () => socket.off("buyer_badge_update", fetchBadges);
     }, [user, navigate]);
 
     const handleSave = async () => {
@@ -369,6 +381,14 @@ export default function Profile() {
                                     >
                                         <span style={{ fontSize: 15, color: "var(--primary)" }}>{item.icon}</span>
                                         <span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{item.label}</span>
+                                        {badges[item.path.split("/").pop()] > 0 && (
+                                            <span style={{
+                                                background: "var(--accent)", color: "white", fontSize: 10,
+                                                padding: "2px 6px", borderRadius: 10, fontWeight: 700, minWidth: 16, textAlign: "center"
+                                            }}>
+                                                {badges[item.path.split("/").pop()] > 9 ? "9+" : badges[item.path.split("/").pop()]}
+                                            </span>
+                                        )}
                                         <FaChevronRight size={10} style={{ opacity: 0.3 }} />
                                     </div>
                                 ))}

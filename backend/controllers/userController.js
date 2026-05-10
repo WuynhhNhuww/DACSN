@@ -253,6 +253,12 @@ exports.becomeSeller = async (req, res) => {
       violationCount: 0,
     };
     const updated = await user.save();
+
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("admin_badge_update");
+    }
+
     res.json({
       message: "Đăng ký thành công. Tài khoản seller đang chờ admin duyệt.",
       sellerInfo: updated.sellerInfo,
@@ -306,6 +312,12 @@ exports.approveSeller = async (req, res) => {
     user.sellerInfo.approvedAt = new Date();
     user.sellerInfo.rejectedReason = "";
     const updated = await user.save();
+    
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("admin_badge_update");
+    }
+    
     res.json({ message: "Đã duyệt seller thành công.", sellerInfo: updated.sellerInfo });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -324,6 +336,12 @@ exports.rejectSeller = async (req, res) => {
     user.sellerInfo.isApproved = false;
     user.sellerInfo.rejectedReason = reason;
     const updated = await user.save();
+    
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("admin_badge_update");
+    }
+    
     res.json({ message: "Đã từ chối đăng ký seller.", sellerInfo: updated.sellerInfo });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -429,6 +447,13 @@ exports.toggleWishlist = async (req, res) => {
     if (idx > -1) { user.wishlist.splice(idx, 1); inWishlist = false; }
     else { user.wishlist.push(productId); inWishlist = true; }
     await user.save();
+    
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const socketId = global.userSockets.get(req.user._id.toString());
+      if (socketId) io.to(socketId).emit("buyer_badge_update");
+    }
+    
     res.json({ inWishlist, message: inWishlist ? "Đã thêm vào yêu thích" : "Đã xóa khỏi yêu thích" });
   } catch (err) {
     res.status(500).json({ message: err.message });

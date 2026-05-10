@@ -20,8 +20,18 @@ const productSchema = new mongoose.Schema(
     images: { type: [String], default: [] },
 
     price: { type: Number, required: true, min: 0 },
-
     stock: { type: Number, required: true, min: 0, default: 0 },
+
+    // ===== VARIANTS =====
+    // Ví dụ: [{ name: "Màu đỏ", price: 100000, stock: 10, image: "..." }]
+    variants: [
+      {
+        name: { type: String, required: true },
+        price: { type: Number, required: true, min: 0 },
+        stock: { type: Number, required: true, min: 0 },
+        image: { type: String, default: "" },
+      },
+    ],
 
     sold: { type: Number, default: 0, min: 0 },
 

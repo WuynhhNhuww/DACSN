@@ -1,5 +1,43 @@
 const Message = require("../models/messageModel");
 
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const count = await Message.countDocuments({
+      receiver: currentUserId,
+      read: false
+    });
+    res.json({ unreadCount: count });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.markAsRead = async (req, res) => {
+  try {
+    const { userId } = req.params; // The ID of the person we are chatting with
+    const currentUserId = req.user._id;
+
+    await Message.updateMany(
+      { sender: userId, receiver: currentUserId, read: false },
+      { $set: { read: true } }
+    );
+
+    // Phát event qua socket cho tất cả các tab của user hiện tại
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const socketId = global.userSockets.get(currentUserId.toString());
+      if (socketId) {
+        io.to(socketId).emit("messages_read");
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getMessages = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -33,6 +71,21 @@ exports.sendMessage = async (req, res) => {
       text
     });
 
+    // Real-time: gửi qua socket
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const receiverSocketId = global.userSockets.get(receiverId.toString());
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("new_message", message);
+      }
+      
+      // Implicitly mark as read for sender
+      const senderSocketId = global.userSockets.get(currentUserId.toString());
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("messages_read");
+      }
+    }
+
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -60,17 +113,23 @@ exports.getConversations = async (req, res) => {
       const otherUser = isSender ? msg.receiver : msg.sender;
       const otherId = otherUser._id.toString();
 
-      if (!conversationsMap.has(otherId)) {
-        conversationsMap.set(otherId, {
-          user: {
-            _id: otherUser._id,
-            name: otherUser.name,
-            shopName: otherUser.sellerInfo?.shopName || null
-          },
-          lastMessage: msg.text,
-          updatedAt: msg.createdAt,
-        });
-      }
+        if (!conversationsMap.has(otherId)) {
+          conversationsMap.set(otherId, {
+            user: {
+              _id: otherUser._id,
+              name: otherUser.name,
+              shopName: otherUser.sellerInfo?.shopName || null
+            },
+            lastMessage: msg.text,
+            updatedAt: msg.createdAt,
+            unreadCount: 0
+          });
+        }
+        
+        // Count unread messages from this user
+        if (msg.receiver.toString() === currentUserId.toString() && !msg.read) {
+            conversationsMap.get(otherId).unreadCount += 1;
+        }
     });
 
     res.json(Array.from(conversationsMap.values()));

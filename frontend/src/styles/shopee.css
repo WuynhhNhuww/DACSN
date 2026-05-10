@@ -15,9 +15,9 @@
   --muted: #94a3b8;
 
   /* Fallback aliases for shopee variables */
-  --shopee: var(--primary);
-  --shopee-dark: var(--primary-dark);
-  --shopee-light: var(--primary-light);
+  --wpn: var(--primary);
+  --wpn-dark: var(--primary-dark);
+  --wpn-light: var(--primary-light);
 
   /* Redesign: Tăng góc bo tròn, shadow mềm tinh tế hơn */
   --radius: 16px;
@@ -337,8 +337,8 @@ select {
 
 .headerDropdown a:hover,
 .headerDropdown button:hover {
-  background: var(--shopee-light);
-  color: var(--shopee);
+  background: var(--wpn-light);
+  color: var(--wpn);
 }
 
 .headerDropdown .divider {
@@ -474,7 +474,7 @@ select {
   position: absolute;
   left: 12px;
   top: 12px;
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -517,8 +517,8 @@ select {
 }
 
 .shortcut:hover {
-  background: var(--shopee-light);
-  color: var(--shopee);
+  background: var(--wpn-light);
+  color: var(--wpn);
 }
 
 .shortcutIcon {
@@ -527,8 +527,8 @@ select {
   border-radius: 14px;
   display: grid;
   place-items: center;
-  background: var(--shopee-light);
-  color: var(--shopee);
+  background: var(--wpn-light);
+  color: var(--wpn);
   font-size: 20px;
   transition: var(--transition);
 }
@@ -552,7 +552,7 @@ select {
   border-radius: var(--radius) var(--radius) 0 0;
   font-weight: 700;
   font-size: 15px;
-  border-bottom: 2px solid var(--shopee);
+  border-bottom: 2px solid var(--wpn);
 }
 
 .blockBody {
@@ -563,7 +563,7 @@ select {
 }
 
 .smallLink {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 600;
   font-size: 13px;
 }
@@ -610,7 +610,7 @@ select {
 }
 
 .cat:hover {
-  border-color: var(--shopee);
+  border-color: var(--wpn);
   transform: translateY(-2px);
   box-shadow: var(--shadow);
 }
@@ -673,7 +673,7 @@ select {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -705,7 +705,7 @@ select {
 }
 
 .pPrice {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 700;
   font-size: 16px;
 }
@@ -747,7 +747,7 @@ select {
 
 .hTitle {
   font-weight: 800;
-  color: var(--shopee);
+  color: var(--wpn);
   font-size: 15px;
   letter-spacing: .3px;
 }
@@ -766,7 +766,7 @@ select {
 }
 
 .hViewAll {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 600;
   font-size: 13px;
 }
@@ -855,7 +855,7 @@ select {
 
 .mallDeal {
   padding: 8px 10px 12px;
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 700;
   font-size: 13px;
 }
@@ -885,7 +885,7 @@ select {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   font-weight: 700;
   font-size: 11px;
@@ -928,7 +928,7 @@ select {
   justify-content: space-between;
   gap: 12px;
   box-shadow: var(--shadow-sm);
-  border-left: 4px solid var(--shopee);
+  border-left: 4px solid var(--wpn);
   cursor: pointer;
   transition: var(--transition);
 }
@@ -955,8 +955,8 @@ select {
 }
 
 .vcBtn {
-  border: 1.5px solid var(--shopee);
-  color: var(--shopee);
+  border: 1.5px solid var(--wpn);
+  color: var(--wpn);
   background: transparent;
   padding: 7px 12px;
   border-radius: var(--radius-sm);
@@ -966,14 +966,14 @@ select {
 }
 
 .vcBtn:hover {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
 }
 
 /* ===== MID BANNER ===== */
 .midBanner {
   border-radius: var(--radius);
-  background: linear-gradient(135deg, var(--shopee) 0%, #ff8c42 100%);
+  background: linear-gradient(135deg, var(--wpn) 0%, #ff8c42 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1007,7 +1007,7 @@ select {
 
 .midBanner .cta {
   background: #fff;
-  color: var(--shopee);
+  color: var(--wpn);
   border: 0;
   padding: 12px 20px;
   border-radius: var(--radius);
@@ -1039,23 +1039,23 @@ select {
 }
 
 .btn-primary {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
 }
 
 .btn-primary:hover {
-  background: var(--shopee-dark);
+  background: var(--wpn-dark);
   box-shadow: 0 4px 14px rgba(238, 77, 45, .35);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--shopee);
-  border: 1.5px solid var(--shopee);
+  color: var(--wpn);
+  border: 1.5px solid var(--wpn);
 }
 
 .btn-outline:hover {
-  background: var(--shopee-light);
+  background: var(--wpn-light);
 }
 
 .btn-light {
@@ -1098,7 +1098,7 @@ select {
 .linkBtn {
   border: 0;
   background: 0;
-  color: var(--shopee);
+  color: var(--wpn);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
@@ -1137,7 +1137,7 @@ select {
 }
 
 .formControl:focus {
-  border-color: var(--shopee);
+  border-color: var(--wpn);
   box-shadow: 0 0 0 3px rgba(238, 77, 45, .1);
 }
 
@@ -1182,7 +1182,7 @@ select {
 .authLogo .name {
   font-size: 28px;
   font-weight: 900;
-  color: var(--shopee);
+  color: var(--wpn);
   letter-spacing: -0.5px;
 }
 
@@ -1200,7 +1200,7 @@ select {
 }
 
 .authSwitch a {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 600;
 }
 
@@ -1276,7 +1276,7 @@ select {
 
 .pdThumb.active,
 .pdThumb:hover {
-  border-color: var(--shopee);
+  border-color: var(--wpn);
 }
 
 .pdThumb img {
@@ -1291,7 +1291,7 @@ select {
 
 .pdBadge {
   display: inline-block;
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -1343,13 +1343,13 @@ select {
 }
 
 .pdPrice {
-  color: var(--shopee);
+  color: var(--wpn);
   font-size: 28px;
   font-weight: 800;
 }
 
 .pdSaleTag {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -1520,7 +1520,7 @@ select {
 }
 
 .cartPrice {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 600;
 }
 
@@ -1561,7 +1561,7 @@ select {
 }
 
 .cartLineTotal {
-  color: var(--shopee);
+  color: var(--wpn);
   font-weight: 700;
 }
 
@@ -1577,8 +1577,8 @@ select {
 }
 
 .cartRemove:hover {
-  color: var(--shopee);
-  background: var(--shopee-light);
+  color: var(--wpn);
+  background: var(--wpn-light);
 }
 
 .cartLeft {
@@ -1627,7 +1627,7 @@ select {
 }
 
 .sumTotal b {
-  color: var(--shopee);
+  color: var(--wpn);
   font-size: 20px;
   font-weight: 800;
 }
@@ -1697,7 +1697,7 @@ select {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--shopee), #ff8c42);
+  background: linear-gradient(135deg, var(--wpn), #ff8c42);
   display: grid;
   place-items: center;
   color: #fff;
@@ -1737,15 +1737,15 @@ select {
 }
 
 .sidebarLink:hover {
-  background: var(--shopee-light);
-  color: var(--shopee);
+  background: var(--wpn-light);
+  color: var(--wpn);
 }
 
 .sidebarLink.active {
-  background: var(--shopee-light);
-  color: var(--shopee);
+  background: var(--wpn-light);
+  color: var(--wpn);
   font-weight: 700;
-  border-left: 3px solid var(--shopee);
+  border-left: 3px solid var(--wpn);
 }
 
 .sidebarLink svg {
@@ -1917,9 +1917,9 @@ tr:hover td {
 
 .filterChip:hover,
 .filterChip.active {
-  border-color: var(--shopee);
-  color: var(--shopee);
-  background: var(--shopee-light);
+  border-color: var(--wpn);
+  color: var(--wpn);
+  background: var(--wpn-light);
 }
 
 .filterChip.active {
@@ -1949,14 +1949,14 @@ tr:hover td {
 }
 
 .pageBtn:hover {
-  border-color: var(--shopee);
-  color: var(--shopee);
+  border-color: var(--wpn);
+  color: var(--wpn);
 }
 
 .pageBtn.active {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
-  border-color: var(--shopee);
+  border-color: var(--wpn);
 }
 
 /* ===== FOOTER ===== */
@@ -2009,7 +2009,7 @@ tr:hover td {
 }
 
 .footerCol a:hover {
-  color: var(--shopee);
+  color: var(--wpn);
 }
 
 .footerBadges,
@@ -2095,13 +2095,13 @@ tr:hover td {
   place-items: center;
   cursor: pointer;
   z-index: 120;
-  color: var(--shopee);
+  color: var(--wpn);
   font-size: 18px;
   transition: var(--transition);
 }
 
 .backTop:hover {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
 }
 
@@ -2320,7 +2320,7 @@ tr:hover td {
 }
 
 .timelineDot.current {
-  background: var(--shopee);
+  background: var(--wpn);
   color: #fff;
   box-shadow: 0 0 0 4px rgba(238, 77, 45, .2);
 }
@@ -2522,4 +2522,21 @@ tr:hover td {
   background: #fff;
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+}
+
+/* ===== SMALL SPINNER ===== */
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinner-rotate 0.6s linear infinite;
+  margin: auto;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }

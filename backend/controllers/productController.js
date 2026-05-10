@@ -5,7 +5,7 @@ const Product = require("../models/productModel");
 // Seller tạo sản phẩm mới → mặc định status = pending_review
 exports.createProduct = async (req, res) => {
   try {
-    const { name, price, description, category, stock, images, sellerProvince } = req.body;
+    const { name, price, description, category, stock, images, sellerProvince, variants } = req.body;
 
     if (!name || price === undefined || !description || !category)
       return res.status(400).json({ message: "Thiếu thông tin bắt buộc (name, price, description, category)" });
@@ -19,8 +19,16 @@ exports.createProduct = async (req, res) => {
       stock: stock ?? 0,
       images: Array.isArray(images) ? images : [],
       sellerProvince: sellerProvince || "",
+      variants: Array.isArray(variants) ? variants : [],
       status: "pending_review", // luôn chờ admin duyệt
     });
+
+    // Real-time: Thông báo cho Admin có sản phẩm mới
+    const io = req.app.get("io");
+    if (io) {
+        io.emit("new_product_submitted", { productId: product._id });
+        io.emit("admin_badge_update");
+    }
 
     res.status(201).json(product);
   } catch (err) {
@@ -142,8 +150,19 @@ exports.updateProduct = async (req, res) => {
     product.stock = req.body.stock ?? product.stock;
     product.images = Array.isArray(req.body.images) ? req.body.images : product.images;
     product.sellerProvince = req.body.sellerProvince ?? product.sellerProvince;
+    product.variants = Array.isArray(req.body.variants) ? req.body.variants : product.variants;
 
     const updated = await product.save();
+
+    // Real-time: Nếu là seller sửa -> gửi lên chờ duyệt -> báo cho Admin
+    if (req.user.role !== "admin") {
+      const io = req.app.get("io");
+      if (io) {
+          io.emit("new_product_submitted", { productId: updated._id });
+          io.emit("admin_badge_update");
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -177,6 +196,17 @@ exports.approveProduct = async (req, res) => {
     product.status = "approved";
     product.rejectedReason = "";
     const updated = await product.save();
+
+    // Real-time: Thông báo cho Seller sản phẩm đã được duyệt
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const sellerSocketId = global.userSockets.get(product.seller.toString());
+      if (sellerSocketId) {
+        io.to(sellerSocketId).emit("product_status_updated", { productId: product._id, status: "approved" });
+        io.to(sellerSocketId).emit("seller_badge_update");
+      }
+    }
+
     res.json({ message: "Đã duyệt sản phẩm.", product: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -192,6 +222,17 @@ exports.rejectProduct = async (req, res) => {
     product.status = "rejected";
     product.rejectedReason = req.body.reason || "Không đáp ứng tiêu chuẩn sản phẩm";
     const updated = await product.save();
+
+    // Real-time: Thông báo cho Seller sản phẩm bị từ chối
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const sellerSocketId = global.userSockets.get(product.seller.toString());
+      if (sellerSocketId) {
+        io.to(sellerSocketId).emit("product_status_updated", { productId: product._id, status: "rejected" });
+        io.to(sellerSocketId).emit("seller_badge_update");
+      }
+    }
+
     res.json({ message: "Đã từ chối sản phẩm.", product: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -207,6 +248,16 @@ exports.removeProduct = async (req, res) => {
     product.status = "removed";
     product.rejectedReason = req.body.reason || "Vi phạm quy định sàn";
     await product.save();
+
+    // Real-time: Thông báo cho Seller sản phẩm bị gỡ
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const sellerSocketId = global.userSockets.get(product.seller.toString());
+      if (sellerSocketId) {
+        io.to(sellerSocketId).emit("product_status_updated", { productId: product._id, status: "removed" });
+        io.to(sellerSocketId).emit("seller_badge_update");
+      }
+    }
 
     // Ghi nhận vi phạm cho seller nếu được yêu cầu
     if (req.body.recordViolation) {

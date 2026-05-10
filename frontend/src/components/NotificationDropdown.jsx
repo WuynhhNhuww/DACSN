@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { getNotifications, markNotifRead, markAllNotifsRead, deleteNotif } from "../api/userApi";
 import { FaBell, FaTrash } from "react-icons/fa";
+import socket from "../utils/socket";
 
 export default function NotificationDropdown() {
     const { user } = useContext(AuthContext);
@@ -22,9 +23,20 @@ export default function NotificationDropdown() {
 
     useEffect(() => {
         if (!user) return;
+        
+        // Cập nhật khi mount
         fetchNotifs();
-        const interval = setInterval(fetchNotifs, 30000);
-        return () => clearInterval(interval);
+        
+        // Real-time listener
+        socket.emit("join", user._id);
+        
+        const handleNewNotif = (notif) => {
+            setNotifs(prev => [notif, ...prev]);
+            setUnread(prev => prev + 1);
+        };
+        
+        socket.on("new_notification", handleNewNotif);
+        return () => socket.off("new_notification", handleNewNotif);
     }, [user]);
 
     const fetchNotifs = async () => {

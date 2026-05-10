@@ -1,6 +1,6 @@
 import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSave, FaArrowLeft, FaImage } from "react-icons/fa";
+import { FaSave, FaArrowLeft, FaImage, FaMagic } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -13,9 +13,11 @@ export default function ProductCreate() {
         name: "", description: "", category: CATEGORIES[0],
         price: "", stock: "", status: "pending_review",
         images: [""],
+        variants: [], // { name, price, stock }
     });
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [generating, setGenerating] = useState(false);
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -31,6 +33,7 @@ export default function ProductCreate() {
                 category: form.category, price: Number(form.price),
                 stock: Number(form.stock || 0), status: "pending_review",
                 images,
+                variants: form.variants.map(v => ({ ...v, price: Number(v.price), stock: Number(v.stock) })),
             });
             alert("Đã gửi yêu cầu tạo sản phẩm! Vui lòng chờ Admin duyệt để hiển thị trên sàn.");
             navigate("/seller/products");
@@ -38,6 +41,22 @@ export default function ProductCreate() {
             setError(err?.response?.data?.message || "Tạo sản phẩm thất bại.");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAIGenerate = async () => {
+        if (!form.name || form.name.length < 5) return alert("Vui lòng nhập tên sản phẩm rõ ràng hơn (ít nhất 5 ký tự) để AI viết mô tả chính xác.");
+        setGenerating(true);
+        try {
+            const res = await axiosClient.post("/api/ai/generate-description", {
+                productName: form.name,
+                category: form.category
+            });
+            set("description", res.data.description);
+        } catch (err) {
+            alert("Lỗi khi kết nối với AI Assistant.");
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -82,8 +101,13 @@ export default function ProductCreate() {
                             <input style={inputStyle} value={form.name} onChange={e => set("name", e.target.value)} placeholder="Tên sản phẩm đầy đủ..." />
                         </div>
                         <div style={{ marginBottom: 20 }}>
-                            <label style={labelStyle}>Mô tả chi tiết <span style={{ color: "var(--as-danger)" }}>*</span></label>
-                            <textarea style={{ ...inputStyle, resize: "vertical" }} rows={6} value={form.description} onChange={e => set("description", e.target.value)} placeholder="Đặc điểm nổi bật, thông số kỹ thuật, hướng dẫn sử dụng..."></textarea>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                <label style={{ ...labelStyle, marginBottom: 0 }}>Mô tả chi tiết <span style={{ color: "var(--as-danger)" }}>*</span></label>
+                                <button type="button" onClick={handleAIGenerate} disabled={generating} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "rgba(79, 70, 229, 0.1)", color: "var(--as-primary)", border: "1px solid var(--as-primary)", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                                    <FaMagic /> {generating ? "Đang viết..." : "AI tự viết mô tả"}
+                                </button>
+                            </div>
+                            <textarea style={{ ...inputStyle, resize: "vertical" }} rows={8} value={form.description} onChange={e => set("description", e.target.value)} placeholder="Đặc điểm nổi bật, thông số kỹ thuật, hướng dẫn sử dụng..."></textarea>
                         </div>
                         <div>
                             <label style={labelStyle}>Danh mục ngành hàng</label>
@@ -114,6 +138,36 @@ export default function ProductCreate() {
                             )}
                         </div>
                     </div>
+
+                    <div className="as-card" style={{ padding: 32 }}>
+                        <h3 style={{ margin: "0 0 24px 0", fontSize: "1.2rem", borderBottom: "1px solid var(--as-border)", paddingBottom: 16 }}>Phân loại hàng (Variants)</h3>
+                        <div style={{ marginBottom: 16, color: "var(--as-text-muted)", fontSize: "0.9rem" }}>Thêm các lựa chọn như Màu sắc, Kích cỡ... Nếu có phân loại, giá và kho sẽ theo phân loại.</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            {form.variants.map((v, i) => (
+                                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 40px", gap: 12, alignItems: "center", background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid var(--as-border)" }}>
+                                    <input style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Tên loại (Vd: Màu Đỏ, Size M)" value={v.name} onChange={e => {
+                                        const next = [...form.variants];
+                                        next[i].name = e.target.value;
+                                        set("variants", next);
+                                    }} />
+                                    <input type="number" style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Giá" value={v.price} onChange={e => {
+                                        const next = [...form.variants];
+                                        next[i].price = e.target.value;
+                                        set("variants", next);
+                                    }} />
+                                    <input type="number" style={{ ...inputStyle, background: "#fff", padding: "8px 12px" }} placeholder="Kho" value={v.stock} onChange={e => {
+                                        const next = [...form.variants];
+                                        next[i].stock = e.target.value;
+                                        set("variants", next);
+                                    }} />
+                                    <button type="button" style={{ border: "none", background: "none", color: "var(--as-danger)", cursor: "pointer" }} onClick={() => {
+                                        set("variants", form.variants.filter((_, idx) => idx !== i));
+                                    }}>✕</button>
+                                </div>
+                            ))}
+                            <button type="button" className="as-btn as-btn-outline" style={{ padding: "10px", borderStyle: "dashed" }} onClick={() => set("variants", [...form.variants, { name: "", price: form.price, stock: 10 }])}>+ Thêm phân loại hàng</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 100 }}>
@@ -135,7 +189,7 @@ export default function ProductCreate() {
                     <div className="as-card" style={{ padding: 24, background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.2)" }}>
                         <h3 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "var(--as-warning)" }}>Quy trình duyệt</h3>
                         <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--as-text-muted)", lineHeight: 1.5 }}>
-                            Sản phẩm mới tải lên sẽ có trạng thái <strong>Chờ Duyệt</strong>. Đội ngũ kiểm duyệt của thẻ Shopee Mini sẽ xem xét trong vòng 24h trước khi cho phép hiển thị với Khách hàng.
+                            Sản phẩm mới tải lên sẽ có trạng thái <strong>Chờ Duyệt</strong>. Đội ngũ kiểm duyệt của WPN Store sẽ xem xét trong vòng 24h trước khi cho phép hiển thị với Khách hàng.
                         </p>
                     </div>
 

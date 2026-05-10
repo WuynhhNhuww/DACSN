@@ -60,7 +60,10 @@ export default function Checkout() {
                 valueType: v.type, // 'percentage' | 'fixed'
                 minOrder: v.minOrderValue || 0,
                 scope: v.scope,
-                sellerId: v.sellerId
+                sellerId: v.sellerId,
+                _id: v._id,
+                usedCount: v.usedCount || 0,
+                maxUses: v.maxUses
             }));
             setAvailableVouchers(mapped);
         }).finally(() => setLoading(false));
@@ -151,7 +154,10 @@ export default function Checkout() {
 
         try {
             const orderData = {
-                items: items.map(it => it.id || it.product),
+                items: items.map(it => ({
+                    product: it.product || it.id,
+                    variantName: it.variantName || ""
+                })),
                 shippingAddress: address,
                 paymentMethod,
                 itemsPrice: subtotal,
@@ -192,7 +198,7 @@ export default function Checkout() {
                 {error && (
                     <div className="alert alert-error" style={{ marginBottom: 24, borderRadius: 12 }}>
                         {error}
-                        {error.includes("ShopeePay") && (
+                        {error.includes("WNPPAY") && (
                             <span style={{ marginLeft: 8 }}>
                                 <button className="linkBtn" onClick={() => navigate('/buyer/wallet')} style={{ textDecoration: 'underline', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Nạp ngay</button>
                             </span>
@@ -250,6 +256,11 @@ export default function Checkout() {
                                             </div>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{it.name}</div>
+                                                {it.variantName && (
+                                                    <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 600, marginBottom: 4 }}>
+                                                        Phân loại: {it.variantName}
+                                                    </div>
+                                                )}
                                                 <div style={{ fontSize: 13, color: "var(--text-light)" }}>Quantity: {it.qty}</div>
                                             </div>
                                             <div style={{ textAlign: "right" }}>
@@ -286,7 +297,7 @@ export default function Checkout() {
                                 <label style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer", padding: "16px 20px", borderRadius: 16, border: paymentMethod === "WALLET" ? "2px solid var(--primary)" : "2px solid var(--line)", background: paymentMethod === "WALLET" ? "var(--primary-light)" : "transparent", transition: "all 0.2s" }}>
                                     <input type="radio" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} style={{ width: 18, height: 18 }} />
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 700, fontSize: 14 }}>Ví ShopeePay (E-Wallet)</div>
+                                        <div style={{ fontWeight: 700, fontSize: 14 }}>Ví WNPPAY (E-Wallet)</div>
                                         <div style={{ fontSize: 12, color: "var(--text-light)" }}>Thanh toán an toàn, không lo tiền lẻ</div>
                                     </div>
                                     <span style={{ fontSize: 20 }}>💰</span>
@@ -435,6 +446,9 @@ export default function Checkout() {
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{v.title}</div>
                                                     <div style={{ fontSize: 12, color: "var(--text-light)" }}>{v.desc}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-lighter)", marginTop: 4 }}>
+                                                        {v.usedCount} / {v.maxUses === null ? "∞" : v.maxUses} used
+                                                    </div>
                                                     {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>{reason}</div>}
                                                 </div>
                                                 <input
@@ -484,6 +498,9 @@ export default function Checkout() {
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{v.title}</div>
                                                     <div style={{ fontSize: 12, color: "var(--text-light)" }}>{v.desc}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-lighter)", marginTop: 4 }}>
+                                                        {v.usedCount} / {v.maxUses === null ? "∞" : v.maxUses} used
+                                                    </div>
                                                     {disabled && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 4, fontWeight: 600 }}>{reason}</div>}
                                                 </div>
                                                 <input

@@ -42,6 +42,11 @@ const orderItemSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    
+    variantName: {
+      type: String,
+      default: "",
+    },
   },
   { _id: true }
 );

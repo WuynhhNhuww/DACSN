@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
-import { FaBullhorn, FaPlus } from "react-icons/fa";
+import { useNavigate, Link } from "react-router-dom";
+import { FaBullhorn, FaPlus, FaTrash, FaWallet, FaArrowRight } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -11,6 +12,7 @@ export default function SellerAds() {
     const { user } = useContext(AuthContext) || {};
     const [banners, setBanners] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [wallet, setWallet] = useState(null);
 
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ title: "", description: "", imageUrl: "", targetType: "shop", position: "home_slider", requestedDays: 7 });
@@ -19,16 +21,40 @@ export default function SellerAds() {
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
         loadBanners();
+        loadWallet();
     }, [user, navigate]);
 
+    useEffect(() => {
+        if (user) {
+            socket.emit("join", user._id);
+            socket.on("ad_status_updated", () => {
+                loadBanners();
+                loadWallet();
+            });
+            return () => {
+                socket.off("ad_status_updated");
+            };
+        }
+    }, [user]);
+
     const loadBanners = async () => {
+        setLoading(true);
         try {
-            const res = await axiosClient.get("/api/banners/seller");
+            const res = await axiosClient.get("/api/banners/my");
             setBanners(res.data || []);
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadWallet = async () => {
+        try {
+            const res = await axiosClient.get("/api/wallets");
+            setWallet(res.data.wallet);
+        } catch (err) {
+            console.error("Lỗi tải ví:", err);
         }
     };
 
@@ -51,13 +77,40 @@ export default function SellerAds() {
         }
     };
 
+    const handleCancelAd = async (id) => {
+        if (!window.confirm("Bạn muốn hủy yêu cầu quảng cáo này?")) return;
+        try {
+            await axiosClient.put(`/api/banners/${id}/end`);
+            loadBanners();
+        } catch (err) {
+            alert("Lỗi khi hủy quảng cáo");
+        }
+    };
+
+    const handlePayWallet = async (id, fee) => {
+        if (!wallet || wallet.balance < fee) {
+            alert("Số dư ví không đủ. Vui lòng nạp thêm tiền qua VNPay!");
+            return;
+        }
+        if (!window.confirm(`Xác nhận thanh toán ${fmt(fee)} từ ví của bạn?`)) return;
+
+        try {
+            await axiosClient.put(`/api/banners/${id}/pay-wallet`);
+            alert("Thanh toán thành công! Quảng cáo đã được kích hoạt.");
+            loadBanners();
+            loadWallet();
+        } catch (err) {
+            alert(err.response?.data?.message || "Lỗi thanh toán");
+        }
+    };
+
     const getStatusBadge = (status) => {
         switch (status) {
             case "pending": return <span className="as-badge as-badge-warning">Chờ Admin duyệt</span>;
             case "rejected": return <span className="as-badge as-badge-danger">Từ chối</span>;
-            case "awaiting_payment": return <span className="as-badge as-badge-info">Chờ CK thanh toán</span>;
+            case "awaiting_payment": return <span className="as-badge as-badge-info">Chờ thanh toán</span>;
             case "active": return <span className="as-badge as-badge-success">Đang trực tuyến</span>;
-            case "ended": return <span className="as-badge as-badge-neutral">Đã kết thúc / Gỡ</span>;
+            case "ended": return <span className="as-badge as-badge-neutral">Đã kết thúc / Hủy</span>;
             default: return <span className="as-badge">{status}</span>;
         }
     };
@@ -68,7 +121,18 @@ export default function SellerAds() {
     return (
         <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                <h1 className="as-page-title" style={{ margin: 0 }}>Quảng cáo Shopee (Banner)</h1>
+                <div className="as-page-header-left">
+                    <h1 className="as-page-title" style={{ margin: 0 }}>Quảng cáo WPN (Banner)</h1>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "white", padding: "6px 14px", borderRadius: 40, border: "1px solid var(--as-border)", fontSize: "0.85rem" }}>
+                            <FaWallet color="var(--as-primary)" />
+                            <span>Số dư ví: <strong>{wallet ? fmt(wallet.balance) : "---"}</strong></span>
+                        </div>
+                        <Link to="/buyer/wallet" style={{ fontSize: "0.85rem", color: "var(--as-primary)", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+                            Nạp tiền VNPay <FaArrowRight size={10} />
+                        </Link>
+                    </div>
+                </div>
                 <button className="as-btn as-btn-primary" onClick={() => setShowForm(v => !v)}>
                     <FaPlus style={{ marginRight: 8 }} /> Đăng ký Quảng cáo
                 </button>
@@ -84,6 +148,7 @@ export default function SellerAds() {
                     </div>
 
                     <form onSubmit={handleCreate}>
+                        {/* Form contents same as before... */}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
                             <div>
                                 <label style={labelStyle}>Tiêu đề Banner <span style={{ color: "var(--as-danger)" }}>*</span></label>
@@ -122,8 +187,8 @@ export default function SellerAds() {
                             <strong>📌 Lưu ý quy trình:</strong>
                             <ol style={{ margin: "8px 0 0 0", paddingLeft: 20 }}>
                                 <li style={{ marginBottom: 4 }}>Gửi yêu cầu đăng ký quảng cáo.</li>
-                                <li style={{ marginBottom: 4 }}>Admin sẽ duyệt nội dung ảnh (tránh vi phạm, phản cảm) và báo mức phí. <span style={{ fontStyle: "italic", fontSize: "0.85rem" }}>(Tối thiểu 100,000đ/ngày)</span></li>
-                                <li>Bạn chấp nhận mức phí và thanh toán chuyển khoản, tiến trình sẽ được kích hoạt!</li>
+                                <li style={{ marginBottom: 4 }}>Admin sẽ duyệt nội dung ảnh (tránh vi phạm, phản cảm) và báo mức phí.</li>
+                                <li>Bạn chấp nhận mức phí và thanh toán qua **Ví Shopee**, quảng cáo sẽ tự động kích hoạt!</li>
                             </ol>
                         </div>
 
@@ -153,6 +218,7 @@ export default function SellerAds() {
                                 <th>Chi tiết hiển thị</th>
                                 <th>Chi phí Dịch vụ</th>
                                 <th>Tiến độ / Trạng thái</th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -195,18 +261,35 @@ export default function SellerAds() {
 
                                         {b.status === "awaiting_payment" && (
                                             <div style={{ marginTop: 8, padding: 12, background: "rgba(59, 130, 246, 0.05)", border: "1px dashed rgba(59, 130, 246, 0.4)", borderRadius: 8, fontSize: "0.85rem", maxWidth: 280 }}>
-                                                Vui lòng chuyển khoản đúng <strong style={{ color: "var(--as-danger)", fontSize: "0.95rem" }}>{fmt(b.fee)}</strong> vào:<br />
-                                                <div style={{ padding: "6px 0", margin: "6px 0", borderTop: "1px solid rgba(0,0,0,0.05)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-                                                    <strong>STK:</strong> <span style={{ fontFamily: "monospace", fontSize: "1rem", color: "var(--as-primary)" }}>99998888</span> (VPBank)<br />
-                                                    <strong>Nội dung:</strong> {b._id.toUpperCase().slice(-6)}
-                                                </div>
-                                                <div style={{ color: "var(--as-text-muted)", fontSize: "0.8rem", fontStyle: "italic" }}>Gửi Ủy nhiệm chi cho CSKH hoặc chờ hệ thống tự đối soát trong 30p!</div>
+                                                Bạn có thể thanh toán bằng <strong>Ví điện tử</strong>.<br />
+                                                Phí dịch vụ: <strong style={{ color: "var(--as-danger)", fontSize: "1rem" }}>{fmt(b.fee)}</strong>
+                                                <button
+                                                    className="as-btn as-btn-primary"
+                                                    style={{ width: "100%", marginTop: 12, padding: "10px" }}
+                                                    onClick={() => handlePayWallet(b._id, b.fee)}
+                                                >
+                                                    <FaWallet style={{ marginRight: 8 }} /> Thanh toán bằng Ví
+                                                </button>
+                                                <Link to="/buyer/wallet" style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: "0.8rem", color: "var(--as-primary)", textDecoration: "none" }}>
+                                                    Nạp thêm tiền qua VNPay
+                                                </Link>
                                             </div>
                                         )}
                                         {b.status === "active" && (
                                             <div style={{ fontSize: "0.8rem", color: "var(--as-text-muted)", marginTop: 6 }}>
                                                 Q.Cáo của bạn đang được ưu tiên hiển thị trên sàn.
                                             </div>
+                                        )}
+                                    </td>
+                                    <td>
+                                        {["pending", "awaiting_payment"].includes(b.status) && (
+                                            <button
+                                                className="as-btn as-btn-outline"
+                                                style={{ color: "var(--as-danger)", borderColor: "var(--as-danger)", padding: "6px 12px" }}
+                                                onClick={() => handleCancelAd(b._id)}
+                                            >
+                                                <FaTrash style={{ marginRight: 4 }} /> Hủy / Từ chối
+                                            </button>
                                         )}
                                     </td>
                                 </tr>

@@ -3,6 +3,31 @@ const Order = require("../models/orderModel");
 const { recordSellerViolation } = require("./userController");
 const User = require("../models/User");
 
+// Helper to emit real-time event
+const emitComplaintUpdate = (req, buyerId, sellerId, notifyAdmin = false) => {
+  const io = req.app.get("io");
+  if (!io) return;
+  
+  if (notifyAdmin) {
+    io.emit("admin_complaint_updated"); // Notify all connected admins
+    io.emit("admin_badge_update");
+  }
+  
+  if (global.userSockets) {
+    if (buyerId) {
+      const buyerSocketId = global.userSockets.get(buyerId.toString());
+      if (buyerSocketId) io.to(buyerSocketId).emit("complaint_updated");
+    }
+    if (sellerId) {
+      const sellerSocketId = global.userSockets.get(sellerId.toString());
+      if (sellerSocketId) {
+          io.to(sellerSocketId).emit("complaint_updated");
+          io.to(sellerSocketId).emit("seller_badge_update");
+      }
+    }
+  }
+};
+
 // POST /api/complaints — Buyer gửi khiếu nại
 exports.createComplaint = async (req, res) => {
   try {
@@ -37,6 +62,9 @@ exports.createComplaint = async (req, res) => {
       evidenceImages: evidenceImages || [],
       status: "open",
     });
+
+    // Real-time: Notify Seller
+    emitComplaintUpdate(req, null, sellerId);
 
     res.status(201).json(complaint);
   } catch (err) {
@@ -109,11 +137,15 @@ exports.sellerRespond = async (req, res) => {
     if (!response) return res.status(400).json({ message: "Nội dung phản hồi là bắt buộc" });
 
     complaint.sellerResponse = response;
-    complaint.proposedRefundAmount = Number(proposedRefundAmount) || 0;
+    complaint.proposedRefundAmount = !isNaN(proposedRefundAmount) ? Number(proposedRefundAmount) : 0;
     complaint.sellerRespondedAt = new Date();
     complaint.status = "seller_processing";
 
     const updated = await complaint.save();
+
+    // Real-time: Notify Buyer
+    emitComplaintUpdate(req, complaint.buyer, null);
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -137,6 +169,10 @@ exports.escalateComplaint = async (req, res) => {
     complaint.status = "escalated";
 
     const updated = await complaint.save();
+
+    // Real-time: Notify Seller & Admin
+    emitComplaintUpdate(req, null, complaint.seller, true);
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -170,6 +206,10 @@ exports.buyerRespondProposal = async (req, res) => {
     }
 
     await complaint.save();
+
+    // Real-time: Notify Seller & Admin (if escalated)
+    emitComplaintUpdate(req, null, complaint.seller, !accepted);
+
     res.json(complaint);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -206,6 +246,9 @@ exports.resolveComplaint = async (req, res) => {
         await recordSellerViolation(complaint.seller, `Thua khiếu nại: ${complaint.reason}`, req.user._id);
       }
     }
+
+    // Real-time: Notify Buyer & Seller
+    emitComplaintUpdate(req, complaint.buyer, complaint.seller);
 
     res.json({ message: "Đã giải quyết khiếu nại.", complaint });
   } catch (err) {

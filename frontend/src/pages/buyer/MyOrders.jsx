@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaBox, FaChevronRight, FaShoppingBag, FaStore, FaCommentDots, FaPaperPlane, FaTimes } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 import ShopeeFooter from "../../components/ShopeeFooter";
 
 const STATUS_TABS = [
@@ -34,6 +35,7 @@ export default function MyOrders() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState("all");
+    const [counts, setCounts] = useState({ all: 0, pending_confirmation: 0, confirmed: 0, shipping: 0, completed: 0, cancelled: 0 });
 
     // Chat
     const [chatModal, setChatModal] = useState(null); // { sellerId, shopName }
@@ -47,17 +49,33 @@ export default function MyOrders() {
             navigate("/home");
             return;
         }
-        axiosClient.get("/api/orders/my")
-            .then(res => setOrders(res.data || []))
-            .catch(() => setOrders([]))
-            .finally(() => setLoading(false));
-    }, [user]);
+        
+        const fetchOrders = () => {
+            axiosClient.get("/api/orders/my")
+                .then(res => setOrders(res.data || []))
+                .catch(() => setOrders([]))
+                .finally(() => setLoading(false));
+            
+            axiosClient.get("/api/orders/my/counts")
+                .then(res => setCounts(res.data))
+                .catch(console.error);
+        };
+        
+        fetchOrders();
+
+        // Real-time
+        socket.emit("join", user._id);
+        socket.on("order_updated", fetchOrders);
+
+        return () => socket.off("order_updated", fetchOrders);
+    }, [user, navigate]);
 
     const handleCancelOrder = async (e, id) => {
         e.stopPropagation();
         if (!window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này không?")) return;
         try {
             await axiosClient.patch(`/api/orders/${id}/cancel`);
+            // Lắng nghe socket nên có thể không cần setOrders tay ở đây, nhưng set tay sẽ mượt hơn
             setOrders(prev => prev.map(o => o._id === id ? { ...o, status: "cancelled" } : o));
             alert("Đã hủy đơn hàng thành công!");
         } catch (err) {
@@ -74,6 +92,18 @@ export default function MyOrders() {
             axiosClient.get(`/api/chat/${chatModal.sellerId}`)
                 .then(res => { setMessages(res.data || []); scrollToBottom(); })
                 .catch(console.error);
+
+            const handleNewMessage = (msg) => {
+                if (msg.sender === chatModal.sellerId || msg.receiver === chatModal.sellerId) {
+                    setMessages(prev => {
+                        if (prev.some(m => m._id === msg._id)) return prev;
+                        return [...prev, msg];
+                    });
+                    setTimeout(scrollToBottom, 100);
+                }
+            };
+            socket.on("new_message", handleNewMessage);
+            return () => socket.off("new_message", handleNewMessage);
         }
     }, [chatModal]);
 
@@ -114,8 +144,18 @@ export default function MyOrders() {
                                     color: tab === t.key ? "var(--primary)" : "var(--text-light)",
                                     borderBottom: tab === t.key ? "3px solid var(--primary)" : "3px solid transparent",
                                     transition: "all 0.2s", whiteSpace: "nowrap",
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8
                                 }}>
                                 {t.label}
+                                {counts[t.key] > 0 && (
+                                    <span style={{
+                                        background: tab === t.key ? "var(--primary)" : "var(--line)",
+                                        color: tab === t.key ? "white" : "var(--text-light)",
+                                        fontSize: 11, padding: "2px 6px", borderRadius: 10, minWidth: 18
+                                    }}>
+                                        {counts[t.key]}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaCheck, FaTimes, FaMoneyBillWave, FaStopCircle, FaBullhorn } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -13,12 +14,22 @@ export default function AdminBanners() {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState("pending");
 
-    const [reviewModal, setReviewModal] = useState({ show: false, banner: null, fee: 100000, rejectReason: "", type: "approve" });
+    const [reviewModal, setReviewModal] = useState({ show: false, banner: null, fee: 10000, requestedDays: 7, rejectReason: "", type: "approve" });
 
     useEffect(() => {
         if (!user || user.role !== "admin") return navigate("/");
         loadBanners();
     }, [user, navigate, filterStatus]);
+
+    useEffect(() => {
+        if (user && user.role === "admin") {
+            socket.emit("join", user._id);
+            socket.on("new_ad_submitted", loadBanners);
+            return () => {
+                socket.off("new_ad_submitted", loadBanners);
+            };
+        }
+    }, [user]);
 
     const loadBanners = async () => {
         setLoading(true);
@@ -33,17 +44,18 @@ export default function AdminBanners() {
     };
 
     const submitReview = async () => {
-        const { banner, fee, rejectReason, type } = reviewModal;
-        if (type === "approve" && (!fee || fee < 100000)) return alert("Phí duyệt tối thiểu: 100,000đ");
+        const { banner, fee, requestedDays, rejectReason, type } = reviewModal;
+        if (type === "approve" && (!fee || fee < 10000)) return alert("Đơn giá tối thiểu: 10,000đ/ngày");
         if (type === "reject" && !rejectReason.trim()) return alert("Vui lòng nhập lý do từ chối");
 
         try {
             await axiosClient.put(`/api/banners/${banner._id}/review`, {
                 action: type,
                 fee: type === "approve" ? Number(fee) : 0,
+                requestedDays: type === "approve" ? Number(requestedDays) : banner.requestedDays,
                 rejectedReason: type === "reject" ? rejectReason : ""
             });
-            setReviewModal({ show: false, banner: null, fee: 100000, rejectReason: "", type: "approve" });
+            setReviewModal({ show: false, banner: null, fee: 10000, requestedDays: 7, rejectReason: "", type: "approve" });
             loadBanners();
         } catch (err) {
             alert(err.response?.data?.message || "Lỗi thao tác");
@@ -76,7 +88,7 @@ export default function AdminBanners() {
             case "rejected":         return <span className="as-badge as-badge-danger">Đã từ chối</span>;
             case "awaiting_payment": return <span className="as-badge as-badge-info">Chờ thanh toán</span>;
             case "active":           return <span className="as-badge as-badge-success">Đang xuất bản</span>;
-            case "ended":            return <span className="as-badge as-badge-neutral">Đã Gỡ</span>;
+            case "ended":            return <span className="as-badge as-badge-neutral">Đã Gỡ / Hủy</span>;
             default:                 return <span className="as-badge">{status}</span>;
         }
     };
@@ -178,10 +190,10 @@ export default function AdminBanners() {
                                         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", minWidth: 120 }}>
                                             {b.status === "pending" && (
                                                 <>
-                                                    <button className="as-btn as-btn-sm as-btn-primary" style={{ width: "100%" }} onClick={() => setReviewModal({ show: true, banner: b, fee: 100000, rejectReason: "", type: "approve" })}>
+                                                    <button className="as-btn as-btn-sm as-btn-primary" style={{ width: "100%" }} onClick={() => setReviewModal({ show: true, banner: b, fee: 10000, requestedDays: b.requestedDays, rejectReason: "", type: "approve" })}>
                                                         <FaMoneyBillWave size={10} /> Báo giá & Duyệt
                                                     </button>
-                                                    <button className="as-btn as-btn-sm as-btn-outline" style={{ width: "100%", borderColor: "var(--as-danger)", color: "var(--as-danger-dark)" }} onClick={() => setReviewModal({ show: true, banner: b, fee: 0, rejectReason: "", type: "reject" })}>
+                                                    <button className="as-btn as-btn-sm as-btn-outline" style={{ width: "100%", borderColor: "var(--as-danger)", color: "var(--as-danger-dark)" }} onClick={() => setReviewModal({ show: true, banner: b, fee: 0, requestedDays: b.requestedDays, rejectReason: "", type: "reject" })}>
                                                         <FaTimes size={10} /> Từ chối
                                                     </button>
                                                 </>
@@ -216,41 +228,66 @@ export default function AdminBanners() {
                             <h3 className="as-modal-title" style={{ color: reviewModal.type === "approve" ? "var(--as-primary)" : "var(--as-danger-dark)" }}>
                                 {reviewModal.type === "approve" ? "Duyệt & Báo giá Quảng Cáo" : "Từ chối Bản thảo"}
                             </h3>
-                            <button className="as-modal-close" onClick={() => setReviewModal({ show: false, banner: null, fee: 100000, rejectReason: "", type: "approve" })}>×</button>
+                            <button className="as-modal-close" onClick={() => setReviewModal({ show: false, banner: null, fee: 10000, requestedDays: 7, rejectReason: "", type: "approve" })}>×</button>
                         </div>
 
-                        <div className="as-form-group">
-                            {reviewModal.type === "approve" ? (
-                                <>
-                                    <label className="as-form-label">Phí tính cho {reviewModal.banner.requestedDays} ngày hiển thị (₫) <span className="required">*</span></label>
-                                    <input
-                                        type="number"
-                                        className="as-input"
-                                        min="100000"
-                                        value={reviewModal.fee}
-                                        style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--as-primary)" }}
-                                        onChange={e => setReviewModal({ ...reviewModal, fee: e.target.value })}
-                                    />
-                                    <div style={{ fontSize: "0.8rem", color: "var(--as-text-subtle)", marginTop: 4 }}>
-                                        Tối thiểu 100,000đ. Seller sẽ nhận được thông báo chuyển khoản để kích hoạt.
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <label className="as-form-label">Lý do từ chối <span className="required">*</span></label>
-                                    <textarea
-                                        className="as-textarea"
-                                        rows="4"
-                                        value={reviewModal.rejectReason}
-                                        onChange={e => setReviewModal({ ...reviewModal, rejectReason: e.target.value })}
-                                        placeholder="Ảnh mờ, sai kích thước, nội dung vi phạm..."
-                                    />
-                                </>
-                            )}
+                        <div className="as-modal-body" style={{ padding: "20px 24px" }}>
+                            <div className="as-form-group">
+                                {reviewModal.type === "approve" ? (
+                                    <>
+                                        <div style={{ marginBottom: 16 }}>
+                                            <label className="as-form-label">Đơn giá mỗi ngày (₫/ngày) <span className="required">*</span></label>
+                                            <input
+                                                type="number"
+                                                className="as-input"
+                                                min="10000"
+                                                value={reviewModal.fee}
+                                                style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--as-primary)" }}
+                                                onChange={e => setReviewModal({ ...reviewModal, fee: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div style={{ marginBottom: 16 }}>
+                                            <label className="as-form-label">Số ngày hiển thị <span className="required">*</span></label>
+                                            <input
+                                                type="number"
+                                                className="as-input"
+                                                min="1"
+                                                value={reviewModal.requestedDays}
+                                                onChange={e => setReviewModal({ ...reviewModal, requestedDays: e.target.value })}
+                                            />
+                                            <div style={{ fontSize: "0.75rem", color: "var(--as-text-muted)", marginTop: 4 }}>
+                                                Seller muốn chạy {reviewModal.banner.requestedDays} ngày. Bạn có thể điều chỉnh lại.
+                                            </div>
+                                        </div>
+
+                                        <div style={{ padding: "16px", background: "var(--as-bg)", borderRadius: 8, marginTop: 12, border: "1px solid var(--as-border)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--as-danger-dark)", fontSize: "1.1rem", fontWeight: 800 }}>
+                                                <span>TỔNG CỘNG:</span>
+                                                <span>{fmt(reviewModal.fee * reviewModal.requestedDays)}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: "0.8rem", color: "var(--as-text-subtle)", marginTop: 8 }}>
+                                            Hệ thống sẽ trừ thẳng vào ví của Seller khi họ bấm xác nhận.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <label className="as-form-label">Lý do từ chối <span className="required">*</span></label>
+                                        <textarea
+                                            className="as-textarea"
+                                            rows="4"
+                                            value={reviewModal.rejectReason}
+                                            onChange={e => setReviewModal({ ...reviewModal, rejectReason: e.target.value })}
+                                            placeholder="Ảnh mờ, sai kích thước, nội dung vi phạm..."
+                                        />
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         <div className="as-modal-footer">
-                            <button className="as-btn as-btn-outline" onClick={() => setReviewModal({ show: false, banner: null, fee: 100000, rejectReason: "", type: "approve" })}>Hủy</button>
+                            <button className="as-btn as-btn-outline" onClick={() => setReviewModal({ show: false, banner: null, fee: 10000, requestedDays: 7, rejectReason: "", type: "approve" })}>Hủy</button>
                             <button
                                 className={`as-btn ${reviewModal.type === "approve" ? "as-btn-primary" : "as-btn-danger"}`}
                                 onClick={submitReview}

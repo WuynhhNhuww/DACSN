@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaTrash, FaCheck, FaBan } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -18,6 +19,16 @@ export default function AdminProducts() {
         if (!user || user.role !== "admin") return navigate("/");
         loadProducts();
     }, [user, navigate, filterStatus]);
+
+    useEffect(() => {
+        if (user && user.role === "admin") {
+            socket.emit("join", user._id);
+            socket.on("new_product_submitted", loadProducts);
+            return () => {
+                socket.off("new_product_submitted", loadProducts);
+            };
+        }
+    }, [user]);
 
     const loadProducts = async () => {
         setLoading(true);

@@ -38,6 +38,11 @@ const cartItemSchema = mongoose.Schema(
       default: 0,
       min: 0,
     },
+    
+    variantName: {
+      type: String,
+      default: "",
+    },
   },
   { _id: true }
 );

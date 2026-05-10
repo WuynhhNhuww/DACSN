@@ -12,14 +12,18 @@ const {
   verifyOrderVnpayPayment,
   createVnpayPaymentForExistingOrder,
   verifyOrderMomoPayment,
-  createMomoPaymentForExistingOrder
+  createMomoPaymentForExistingOrder,
+  getPendingSellerOrdersCount,
+  getMyOrderCounts
 } = require("../controllers/orderController");
 
 const { protect, isSellerOrAdmin, isBuyerOnly } = require("../middleware/authMiddleware");
 
 router.post("/", protect, isBuyerOnly, createOrder);
 router.get("/my", protect, isBuyerOnly, getMyOrders);
+router.get("/my/counts", protect, isBuyerOnly, getMyOrderCounts);
 router.get("/seller-orders", protect, isSellerOrAdmin, getSellerOrders);
+router.get("/seller-orders/pending-count", protect, isSellerOrAdmin, getPendingSellerOrdersCount);
 router.get("/:id", protect, getOrderById);
 
 // chỉ seller/admin được cập nhật trạng thái

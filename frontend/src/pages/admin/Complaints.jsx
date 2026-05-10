@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaGavel, FaCheckCircle, FaExclamationTriangle, FaCommentDots, FaUserSlash } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -19,6 +20,14 @@ export default function AdminComplaints() {
         if (!user || user.role !== "admin") return navigate("/");
         loadComplaints();
     }, [user, navigate, filterStatus]);
+
+    useEffect(() => {
+        if (user && user.role === "admin") {
+            socket.emit("join", user._id);
+            socket.on("admin_complaint_updated", loadComplaints);
+            return () => socket.off("admin_complaint_updated", loadComplaints);
+        }
+    }, [user]);
 
     const loadComplaints = async () => {
         setLoading(true);

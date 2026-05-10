@@ -18,7 +18,7 @@ const calcFinalPrice = (product) => {
 // @access Private
 const addToCart = async (req, res) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, variantName = "" } = req.body;
 
     if (!productId) {
       return res.status(400).json({ message: "productId is required" });
@@ -44,7 +44,7 @@ const addToCart = async (req, res) => {
     }
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId.toString()
+      (item) => item.product.toString() === productId.toString() && item.variantName === variantName
     );
 
     // Lấy snapshot với giá đã giảm
@@ -69,10 +69,18 @@ const addToCart = async (req, res) => {
         name: product.name,
         image,
         unitPrice: finalPrice,
+        variantName,
       });
     }
 
     await cart.save();
+    
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const socketId = global.userSockets.get(req.user._id.toString());
+      if (socketId) io.to(socketId).emit("buyer_badge_update");
+    }
+    
     res.status(201).json(cart);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -109,11 +117,20 @@ const removeFromCart = async (req, res) => {
       return res.status(404).json({ message: "Cart not found" });
     }
 
+    const productId = req.params.productId;
+    const variantName = req.query.variantName || "";
+
     cart.items = cart.items.filter(
-      (item) => item.product.toString() !== req.params.productId.toString()
+      (item) => item.product.toString() !== productId.toString() || item.variantName !== variantName
     );
 
     await cart.save();
+
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+      const socketId = global.userSockets.get(req.user._id.toString());
+      if (socketId) io.to(socketId).emit("buyer_badge_update");
+    }
 
     res.json(cart);
   } catch (error) {

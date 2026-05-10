@@ -626,8 +626,22 @@ body.admin-seller-mode {
     background: var(--as-surface);
     border-radius: 18px;
     border: 1px solid var(--as-border);
-    overflow: hidden;
+    overflow-x: auto;
     box-shadow: var(--as-shadow-sm);
+}
+
+.as-table-wrapper::-webkit-scrollbar {
+    height: 6px;
+}
+.as-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+.as-table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--as-border-strong);
+    border-radius: 10px;
+}
+.as-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--as-text-subtle);
 }
 
 .as-table {
@@ -637,21 +651,21 @@ body.admin-seller-mode {
 
 .as-table th {
     background: var(--as-bg);
-    padding: 13px 20px;
+    padding: 12px 16px;
     text-align: left;
     font-weight: 700;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--as-text-muted);
     border-bottom: 1px solid var(--as-border);
     white-space: nowrap;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
 }
 
 .as-table td {
-    padding: 15px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--as-border);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--as-text-secondary);
     vertical-align: middle;
 }
@@ -705,9 +719,9 @@ body.admin-seller-mode {
 
 .as-product-name {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--as-text);
-    max-width: 260px;
+    max-width: 200px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

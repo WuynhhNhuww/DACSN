@@ -1,9 +1,22 @@
 const Notification = require("../models/notificationModel");
 
 // Utility function để tạo thông báo từ code khác (orderController, v.v.)
-const createNotification = async ({ user, type, title, message, link = "" }) => {
+// Nhận thêm req để lấy io và socket
+const createNotification = async ({ user, type, title, message, link = "", req = null }) => {
     try {
-        await Notification.create({ user, type, title, message, link });
+        const notif = await Notification.create({ user, type, title, message, link });
+        
+        // Emit socket nếu có global.userSockets
+        if (req && req.app && global.userSockets) {
+            const io = req.app.get("io");
+            const socketId = global.userSockets.get(user.toString());
+            if (socketId && io) {
+                io.to(socketId).emit("new_notification", notif);
+            }
+        } else if (global.userSockets) {
+            // Trường hợp không có req (được gọi từ cronjob hoặc script khác không qua router)
+            // Ta có thể pass io qua global object nếu muốn
+        }
     } catch (err) {
         console.error("Notification create error:", err.message);
     }

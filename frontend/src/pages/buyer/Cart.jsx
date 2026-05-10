@@ -19,7 +19,7 @@ export default function Cart() {
       axiosClient.get("/api/cart")
         .then(res => {
           const data = res.data?.items || [];
-          setItems(data.map(it => ({
+            setItems(data.map(it => ({
             id: it.product?._id || it.product,
             cartId: it._id,
             name: it.name || it.product?.name,
@@ -27,6 +27,7 @@ export default function Cart() {
             image: it.image || it.product?.images?.[0] || "",
             qty: it.quantity,
             seller: it.seller,
+            variantName: it.variantName || "",
           })));
         })
         .catch(() => loadLocal())
@@ -55,37 +56,47 @@ export default function Cart() {
     window.dispatchEvent(new Event("cart:updated"));
   };
 
-  const inc = (id) => {
-    const updated = items.map(it => it.id === id ? { ...it, qty: Math.min(99, it.qty + 1) } : it);
+  const inc = async (it) => {
+    const vName = it.variantName || "";
+    const updated = items.map(item => (item.id === it.id && item.variantName === vName) ? { ...item, qty: Math.min(99, item.qty + 1) } : item);
     setItems(updated);
     saveLocal(updated);
-  };
-
-  const dec = (id) => {
-    const updated = items.map(it => it.id === id ? { ...it, qty: Math.max(1, it.qty - 1) } : it);
-    setItems(updated);
-    saveLocal(updated);
-  };
-
-  const remove = async (id) => {
     if (user) {
-      try { await axiosClient.delete(`/api/cart/${id}`); } catch { }
+        try { await axiosClient.post("/api/cart", { productId: it.id, quantity: 1, variantName: vName }); } catch (err) { console.error(err); }
     }
-    const updated = items.filter(it => it.id !== id);
+  };
+
+  const dec = async (it) => {
+    const vName = it.variantName || "";
+    if (it.qty <= 1) return;
+    const updated = items.map(item => (item.id === it.id && item.variantName === vName) ? { ...item, qty: item.qty - 1 } : item);
     setItems(updated);
-    setSelected(prev => prev.filter(x => x !== id));
+    saveLocal(updated);
+    if (user) {
+        try { await axiosClient.post("/api/cart", { productId: it.id, quantity: -1, variantName: vName }); } catch (err) { console.error(err); }
+    }
+  };
+
+  const remove = async (it) => {
+    const vName = it.variantName || "";
+    if (user) {
+      try { await axiosClient.delete(`/api/cart/${it.id}?variantName=${encodeURIComponent(vName)}`); } catch { }
+    }
+    const updated = items.filter(item => !(item.id === it.id && item.variantName === vName));
+    setItems(updated);
+    setSelected(prev => prev.filter(x => x !== `${it.id}-${vName}`));
     saveLocal(updated);
   };
 
-  const toggleSelect = (id) => {
-    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSelect = (cartKey) => {
+    setSelected(prev => prev.includes(cartKey) ? prev.filter(x => x !== cartKey) : [...prev, cartKey]);
   };
   const toggleSelectAll = () => {
     if (selected.length === items.length && items.length > 0) setSelected([]);
-    else setSelected(items.map(it => it.id));
+    else setSelected(items.map(it => `${it.id}-${it.variantName}`));
   };
 
-  const selectedItems = useMemo(() => items.filter(it => selected.includes(it.id)), [items, selected]);
+  const selectedItems = useMemo(() => items.filter(it => selected.includes(`${it.id}-${it.variantName}`)), [items, selected]);
   const subtotal = useMemo(() => selectedItems.reduce((s, it) => s + it.price * it.qty, 0), [selectedItems]);
   const shippingFee = subtotal >= 500000 || subtotal === 0 ? 0 : 30000;
   const total = subtotal + shippingFee;
@@ -147,13 +158,13 @@ export default function Cart() {
                   <div className="cartShopHeader" style={{ padding: "16px 24px", borderBottom: "1px solid var(--line)", background: "#fcfcfd", display: "flex", alignItems: "center", gap: 12 }}>
                     <input
                       type="checkbox"
-                      checked={group.items.every(it => selected.includes(it.id))}
+                      checked={group.items.every(it => selected.includes(`${it.id}-${it.variantName}`))}
                       onChange={() => {
-                        const groupIds = group.items.map(it => it.id);
-                        if (group.items.every(it => selected.includes(it.id))) {
-                          setSelected(prev => prev.filter(id => !groupIds.includes(id)));
+                        const groupKeys = group.items.map(it => `${it.id}-${it.variantName}`);
+                        if (group.items.every(it => selected.includes(`${it.id}-${it.variantName}`))) {
+                          setSelected(prev => prev.filter(key => !groupKeys.includes(key)));
                         } else {
-                          setSelected(prev => Array.from(new Set([...prev, ...groupIds])));
+                          setSelected(prev => Array.from(new Set([...prev, ...groupKeys])));
                         }
                       }}
                     />
@@ -164,24 +175,27 @@ export default function Cart() {
                   {group.items.map(it => (
                     <div className="cartItem" key={it.id} style={{ display: "grid", gridTemplateColumns: "40px 1fr 120px 120px 120px 40px", gap: 16, padding: "20px 24px", borderBottom: "1px solid #f8fafc", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center" }}>
-                        <input type="checkbox" style={{ transform: "scale(1.2)", cursor: "pointer" }} checked={selected.includes(it.id)} onChange={() => toggleSelect(it.id)} />
+                        <input type="checkbox" style={{ transform: "scale(1.2)", cursor: "pointer" }} checked={selected.includes(`${it.id}-${it.variantName}`)} onChange={() => toggleSelect(`${it.id}-${it.variantName}`)} />
                       </div>
-                      <div className="cartProd" onClick={() => navigate(`/product/${it.id}`)} style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
+                        <div className="cartProd" onClick={() => navigate(`/product/${it.id}`)} style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
                         <div className="cartImg" style={{ width: 80, height: 80, borderRadius: 12, overflow: "hidden", flexShrink: 0, background: "#f1f5f9" }}>
                           {it.image ? <img src={it.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24, opacity: .2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>📦</span>}
                         </div>
-                        <div className="cartName" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.4 }}>{it.name}</div>
+                        <div>
+                          <div className="cartName" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.4 }}>{it.name}</div>
+                          {it.variantName && <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 4, background: "rgba(79, 70, 229, 0.05)", padding: "2px 8px", borderRadius: 4, width: "fit-content" }}>Phân loại: {it.variantName}</div>}
+                        </div>
                       </div>
                       <div className="cartPrice" style={{ textAlign: "right", fontWeight: 600 }}>{fmt(it.price)}</div>
                       <div className="cartQty" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div style={{ display: "flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-                          <button onClick={() => dec(it.id)} style={{ padding: "4px 10px", border: "none", background: "none", cursor: "pointer" }}>−</button>
+                          <button onClick={() => dec(it)} style={{ padding: "4px 10px", border: "none", background: "none", cursor: "pointer" }}>−</button>
                           <span style={{ padding: "4px 12px", borderLeft: "1px solid var(--line)", borderRight: "1px solid var(--line)", fontWeight: 700, fontSize: 13 }}>{it.qty}</span>
-                          <button onClick={() => inc(it.id)} style={{ padding: "4px 10px", border: "none", background: "none", cursor: "pointer" }}>+</button>
+                          <button onClick={() => inc(it)} style={{ padding: "4px 10px", border: "none", background: "none", cursor: "pointer" }}>+</button>
                         </div>
                       </div>
                       <div className="cartLineTotal" style={{ textAlign: "right", fontWeight: 700, color: "var(--primary)" }}>{fmt(it.price * it.qty)}</div>
-                      <button className="cartRemove" onClick={() => remove(it.id)} style={{ background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "var(--accent)"} onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>
+                      <button className="cartRemove" onClick={() => remove(it)} style={{ background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "var(--accent)"} onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>
                         <FaTrash size={14} />
                       </button>
                     </div>

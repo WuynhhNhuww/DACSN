@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { FaBox, FaArrowLeft, FaCheck, FaStore, FaCommentDots, FaStar, FaCreditCard, FaTruck, FaExclamationTriangle, FaTimes, FaPaperPlane } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 import ShopeeFooter from "../../components/ShopeeFooter";
 
 const fmt = (n) => `${Number(n || 0).toLocaleString("vi-VN")}₫`;
@@ -44,39 +45,56 @@ export default function OrderDetail() {
     const [chatInput, setChatInput] = useState("");
     const messagesEndRef = useRef(null);
 
-    useEffect(() => {
-        const fetchOrderAndComplaint = async () => {
-            try {
-                const resOrder = await axiosClient.get(`/api/orders/${id}`);
-                setOrder(resOrder.data);
+    const fetchOrderAndComplaint = async () => {
+        try {
+            const resOrder = await axiosClient.get(`/api/orders/${id}`);
+            setOrder(resOrder.data);
 
-                try {
-                    const resCmp = await axiosClient.get("/api/complaints");
-                    const found = resCmp.data?.find(c => c.order?._id === id || c.order === id);
-                    if (found) setMyComplaint(found);
-                } catch (e) { console.error("Lỗi lấy complaint", e); }
-            } catch (err) {
-                setOrder(null);
-            } finally {
-                setLoading(false);
-            }
-        };
+            try {
+                const resCmp = await axiosClient.get("/api/complaints");
+                const found = resCmp.data?.find(c => c.order?._id === id || c.order === id);
+                if (found) setMyComplaint(found);
+            } catch (e) { console.error("Lỗi lấy complaint", e); }
+        } catch (err) {
+            setOrder(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchOrderAndComplaint();
     }, [id]);
 
-    // Chat Polling
     useEffect(() => {
-        let interval;
-        if (chatTarget) {
-            const fetchMsg = () => {
-                axiosClient.get(`/api/chat/${chatTarget.shopId}`)
-                    .then(res => setMessages(res.data))
-                    .catch(() => { });
-            };
-            fetchMsg();
-            interval = setInterval(fetchMsg, 5000); // pull every 5s
+        if (user) {
+            socket.emit("join", user._id);
+            socket.on("complaint_updated", fetchOrderAndComplaint);
+            return () => socket.off("complaint_updated", fetchOrderAndComplaint);
         }
-        return () => clearInterval(interval);
+    }, [user, id]);
+
+    // Real-time Chat
+    useEffect(() => {
+        if (chatTarget) {
+            // Lấy tin nhắn ban đầu
+            axiosClient.get(`/api/chat/${chatTarget.shopId}`)
+                .then(res => setMessages(res.data))
+                .catch(() => { });
+
+            // Lắng nghe tin nhắn mới qua Socket
+            const handleNewMessage = (msg) => {
+                if (msg.sender === chatTarget.shopId || msg.receiver === chatTarget.shopId) {
+                    setMessages(prev => {
+                        if (prev.some(m => m._id === msg._id)) return prev;
+                        return [...prev, msg];
+                    });
+                }
+            };
+
+            socket.on("new_message", handleNewMessage);
+            return () => socket.off("new_message", handleNewMessage);
+        }
     }, [chatTarget]);
 
     useEffect(() => {
@@ -458,6 +476,11 @@ export default function OrderDetail() {
                                                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>
                                                     {item.name}
                                                 </div>
+                                                {item.variantName && (
+                                                    <div style={{ fontSize: 13, color: "var(--primary)", fontWeight: 600, marginBottom: 4 }}>
+                                                        Phân loại: {item.variantName}
+                                                    </div>
+                                                )}
                                                 <div style={{ fontSize: 14, color: "var(--text-light)" }}>
                                                     SL: {item.qty}
                                                 </div>

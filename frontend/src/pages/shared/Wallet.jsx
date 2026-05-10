@@ -148,7 +148,7 @@ export default function SharedWallet() {
             fontSize:"1.1rem", flexShrink:0,
             boxShadow:"0 6px 16px rgba(99,102,241,0.35)",
           }}>💳</span>
-          Ví ShopeePay
+          Ví WNPPAY
         </div>
         <div style={{ fontSize:"0.82rem", color:"#64748b", marginTop:4, marginLeft:52 }}>
           Quản lý số dư và giao dịch của bạn · Tất cả giao dịch qua VNPay

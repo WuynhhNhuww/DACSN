@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import axios from "axios";
+import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 export default function Wallet() {
+  const { user } = useContext(AuthContext) || {};
   const [wallet, setWallet] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,24 +15,30 @@ export default function Wallet() {
   const [paymentMethod, setPaymentMethod] = useState("VNPAY"); // "VNPAY" | "SIMULATION"
   const [showModal, setShowModal] = useState(false);
 
-  const fetchWallet = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const { data } = await axios.get("http://localhost:5000/api/wallets", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setWallet(data.wallet);
-      setTransactions(data.transactions);
-      setLoading(false);
-    } catch (err) {
-      setError(err.response?.data?.message || err.message);
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchWallet = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const { data } = await axios.get("http://localhost:5000/api/wallets", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setWallet(data.wallet);
+        setTransactions(data.transactions);
+        setLoading(false);
+      } catch (err) {
+        setError(err.response?.data?.message || err.message);
+        setLoading(false);
+      }
+    };
+
     fetchWallet();
-  }, []);
+
+    if (user) {
+      socket.emit("join", user._id);
+      socket.on("wallet_updated", fetchWallet);
+      return () => socket.off("wallet_updated", fetchWallet);
+    }
+  }, [user]);
 
   const handleTransaction = async (e) => {
     e.preventDefault();
@@ -79,7 +88,7 @@ export default function Wallet() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 bg-gray-50 rounded shadow-sm">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Ví Điện Tử (ShopeePay)</h2>
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Ví Điện Tử (WNPPAY)</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-6 rounded-xl shadow-md">

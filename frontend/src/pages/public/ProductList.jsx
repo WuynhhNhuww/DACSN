@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FaStar, FaFilter, FaSortAmountDown } from "react-icons/fa";
+import { FaStar, FaFilter, FaSortAmountDown, FaBullhorn } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import ShopeeFooter from "../../components/ShopeeFooter";
 
@@ -24,6 +24,7 @@ export default function ProductList() {
     const [loading, setLoading] = useState(true);
     const [category, setCategory] = useState(searchParams.get("category") || "Tất cả");
     const [sort, setSort] = useState("newest");
+    const [activeBanners, setActiveBanners] = useState([]);
     const search = searchParams.get("search") || "";
 
     useEffect(() => {
@@ -35,6 +36,11 @@ export default function ProductList() {
         axiosClient.get("/api/products/categories")
             .then(res => setCategories(["Tất cả", ...res.data]))
             .catch(() => setCategories(["Tất cả"]));
+        
+        // Tải banner quảng cáo cho vị trí danh mục
+        axiosClient.get("/api/banners/active")
+            .then(res => setActiveBanners(res.data || []))
+            .catch(() => setActiveBanners([]));
     }, []);
 
     useEffect(() => {
@@ -43,23 +49,61 @@ export default function ProductList() {
         if (search) params.set("search", search);
         if (category && category !== "Tất cả") params.set("category", category);
         if (sort) params.set("sort", sort);
+        if (searchParams.get("minPrice")) params.set("minPrice", searchParams.get("minPrice"));
+        if (searchParams.get("maxPrice")) params.set("maxPrice", searchParams.get("maxPrice"));
         axiosClient.get(`/api/products?${params.toString()}`)
             .then(res => setProducts(res.data?.products || res.data || []))
             .catch(() => setProducts([]))
             .finally(() => setLoading(false));
     }, [search, category, sort]);
 
+    // Lọc banner cho vị trí đầu trang danh mục
+    const topBanner = activeBanners.find(b => b.position === "category_top");
+
     return (
         <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
             <div className="container pageWrap" style={{ paddingTop: 32, paddingBottom: 60 }}>
+                
+                {/* CATEGORY TOP BANNER */}
+                {topBanner && (
+                    <div 
+                        onClick={() => navigate(topBanner.targetType === "product" ? `/product/${topBanner.targetId}` : `/shop/${topBanner.targetId || topBanner.seller?._id}`)}
+                        style={{ 
+                            width: "100%", 
+                            height: 220, // Tăng nhẹ chiều cao
+                            borderRadius: 16, 
+                            marginBottom: 32, 
+                            cursor: "pointer",
+                            position: "relative",
+                            overflow: "hidden",
+                            boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+                            background: "#f1f5f9"
+                        }}
+                    >
+                        <img 
+                            src={topBanner.imageUrl} 
+                            alt={topBanner.title} 
+                            style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0, zIndex: 1 }} 
+                        />
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 100%)", zIndex: 2 }} />
+                        <div style={{ position: "relative", zIndex: 3, color: "#fff", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 60px", maxWidth: "60%" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--as-primary)", padding: "4px 12px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700, width: "fit-content", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 }}>
+                                <FaBullhorn size={11} /> ĐƯỢC TÀI TRỢ
+                            </div>
+                            <h2 style={{ fontSize: "2.2rem", margin: "0 0 10px 0", lineHeight: 1.1, fontWeight: 800 }}>{topBanner.title}</h2>
+                            <p style={{ margin: 0, fontSize: "1.05rem", opacity: 0.9, lineHeight: 1.5 }}>{topBanner.description}</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Tiêu đề */}
                 <div style={{ marginBottom: 24 }}>
                     <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)" }}>
                         {search ? `Kết quả cho "${search}"` : category !== "Tất cả" ? prettyCat(category) : "Tất cả sản phẩm"}
                     </h1>
                     {!loading && (
-                        <div style={{ fontSize: 13, color: "var(--text-light)", marginTop: 4 }}>
-                            Tìm thấy <strong>{products.length}</strong> sản phẩm
+                        <div style={{ fontSize: 13, color: "var(--text-light)", marginTop: 4, display: "flex", alignItems: "center", gap: 10 }}>
+                            <span>Tìm thấy <strong>{products.length}</strong> sản phẩm</span>
                         </div>
                     )}
                 </div>

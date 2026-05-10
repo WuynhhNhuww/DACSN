@@ -77,7 +77,7 @@ export default function AdminVouchers() {
             <div className="as-page-header">
                 <div className="as-page-header-left">
                     <h1 className="as-page-title">Mã Giảm Giá Toàn Sàn</h1>
-                    <p className="as-page-subtitle">Tạo và quản lý các voucher do Shopee Mini phát hành</p>
+                    <p className="as-page-subtitle">Tạo và quản lý các voucher do WPN Store phát hành</p>
                 </div>
                 <button className="as-btn as-btn-primary" onClick={() => setShowModal(true)}>
                     <FaPlus size={12} /> Tạo Voucher

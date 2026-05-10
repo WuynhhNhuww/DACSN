@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaBolt, FaTicketAlt, FaShippingFast, FaStore, FaCoins, FaGift, FaChevronLeft, FaChevronRight, FaStar } from "react-icons/fa";
+import { FaBolt, FaTicketAlt, FaShippingFast, FaStore, FaCoins, FaGift, FaChevronLeft, FaChevronRight, FaStar, FaMagic, FaBullhorn } from "react-icons/fa";
 import axiosClient from "../api/axiosClient";
 import ShopeeFooter from "./ShopeeFooter";
 
@@ -32,24 +32,27 @@ const CATEGORY_MAP = {
 const getCatInfo = (cat) =>
   CATEGORY_MAP[cat] || { icon: "🛍️", label: cat.replace(/-/g, " "), color: "#f1f5f9" };
 
-const SLIDES = [
+const DEFAULT_SLIDES = [
   {
     bg: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     title: "WPN STORE",
     sub: "Mua sắm thả ga — Giá tốt mỗi ngày",
-    badge: "🔥 Hôm nay giảm đến 50%",
+    badge: "HỆ THỐNG",
+    isDefault: true
   },
   {
     bg: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
     title: "FLASH SALE",
     sub: "Hàng ngàn sản phẩm ưu đãi sốc",
-    badge: "⚡ Giới hạn thời gian",
+    badge: "HỆ THỐNG",
+    isDefault: true
   },
   {
     bg: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
     title: "MIỄN PHÍ VẬN CHUYỂN",
     sub: "Đơn hàng từ 500.000₫ trở lên",
-    badge: "🚚 Toàn quốc",
+    badge: "HỆ THỐNG",
+    isDefault: true
   },
 ];
 
@@ -69,32 +72,54 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [slide, setSlide] = useState(0);
+  const [aiRecs, setAiRecs] = useState([]);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [activeBanners, setActiveBanners] = useState([]);
   const timerRef = useRef(null);
+
+  // Lấy TẤT CẢ banner đang active để dồn lên đầu slider trang chủ (không phân biệt position quá khắt khe)
+  const displaySlides = [
+    ...activeBanners
+        .slice(0, 10) 
+        .map(b => ({
+            imageUrl: b.imageUrl,
+            title: b.title,
+            sub: b.description,
+            badge: "TÀI TRỢ",
+            targetUrl: b.targetType === "product" ? `/product/${b.targetId}` : `/shop/${b.targetId || b.seller?._id}`,
+            isDefault: false,
+            isSponsored: true
+        })),
+    ...DEFAULT_SLIDES
+  ];
 
   // Auto-play slides
   useEffect(() => {
-    timerRef.current = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), 4000);
+    if (displaySlides.length === 0) return;
+    timerRef.current = setInterval(() => setSlide(s => (s + 1) % displaySlides.length), 6000);
     return () => clearInterval(timerRef.current);
-  }, []);
+  }, [displaySlides.length]);
 
   const goSlide = (dir) => {
-    setSlide(s => (s + dir + SLIDES.length) % SLIDES.length);
+    setSlide(s => (s + dir + displaySlides.length) % displaySlides.length);
     clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), 4000);
+    timerRef.current = setInterval(() => setSlide(s => (s + 1) % displaySlides.length), 6000);
   };
 
   // Fetch data
   useEffect(() => {
     const load = async () => {
       try {
-        const [catRes, prodRes] = await Promise.all([
+        const [catRes, prodRes, bannerRes] = await Promise.all([
           axiosClient.get("/api/products/categories"),
           axiosClient.get("/api/products?limit=30"),
+          axiosClient.get("/api/banners/active")
         ]);
         setCategories(catRes.data || []);
         const prods = prodRes.data?.products || prodRes.data || [];
         setFlashProducts(prods.slice(0, 6));
         setTodayProducts(prods.slice(6));
+        setActiveBanners(bannerRes.data || []);
       } catch {
         setCategories([]);
       } finally {
@@ -104,6 +129,30 @@ export default function Home() {
     load();
   }, []);
 
+  // AI recommendations effect
+  useEffect(() => {
+    const fetchAiRecs = async () => {
+      const history = JSON.parse(localStorage.getItem("wpn_browse_history") || "[]");
+      if (history.length === 0) return;
+      
+      setLoadingAi(true);
+      try {
+        const res = await axiosClient.post("/api/ai/recommendations", {
+          recentCategories: [...new Set(history.map(h => h.category))],
+          recentProductNames: history.map(h => h.name).slice(-10)
+        });
+        setAiRecs(res.data);
+      } catch (err) {
+        console.error("AI Recs failed", err);
+      } finally {
+        setLoadingAi(false);
+      }
+    };
+    fetchAiRecs();
+  }, []);
+
+  const currentSlide = displaySlides[slide] || DEFAULT_SLIDES[0];
+
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
       {/* HERO */}
@@ -111,55 +160,114 @@ export default function Home() {
         <div className="container">
           <div className="heroGrid">
             {/* SLIDER */}
-            <div className="slider" style={{ background: SLIDES[slide].bg, transition: "background 0.6s" }}>
-              <div style={{ textAlign: "center", color: "#fff", padding: "0 40px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, background: "rgba(255,255,255,0.2)", display: "inline-block", padding: "4px 14px", borderRadius: 999, marginBottom: 12 }}>
-                  {SLIDES[slide].badge}
+            <div 
+                className="slider" 
+                style={{ 
+                    height: 300,
+                    borderRadius: 16,
+                    background: currentSlide.bg || "#f1f5f9", 
+                    transition: "all 0.6s ease-in-out",
+                    position: "relative",
+                    overflow: "hidden",
+                    cursor: "pointer"
+                }}
+                onClick={() => currentSlide.targetUrl ? navigate(currentSlide.targetUrl) : navigate("/products")}
+            >
+              {/* IMAGE LAYER */}
+              {currentSlide.imageUrl ? (
+                  <img 
+                    src={currentSlide.imageUrl} 
+                    alt={currentSlide.title} 
+                    style={{ 
+                        position: "absolute", 
+                        inset: 0, 
+                        width: "100%", 
+                        height: "100%", 
+                        objectFit: "cover", 
+                        zIndex: 1
+                    }} 
+                  />
+              ) : null}
+
+              {/* OVERLAY & CONTENT */}
+              <div style={{ 
+                  position: "absolute", 
+                  inset: 0, 
+                  background: currentSlide.imageUrl ? "linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%)" : "transparent",
+                  zIndex: 2,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  padding: "0 60px"
+              }}>
+                <div style={{ width: "60%" }}>
+                    <div style={{ 
+                        fontSize: 11, 
+                        fontWeight: 700, 
+                        background: currentSlide.isSponsored ? "var(--as-primary)" : "rgba(255,255,255,0.2)", 
+                        color: "#fff", 
+                        display: "inline-flex", 
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "4px 12px", 
+                        borderRadius: 4, 
+                        marginBottom: 14, 
+                        textTransform: "uppercase", 
+                        letterSpacing: 1.2 
+                    }}>
+                        {currentSlide.isSponsored && <FaBullhorn size={10} />}
+                        {currentSlide.badge}
+                    </div>
+                    <div className="slideText" style={{ fontSize: "2.8rem", color: "#fff", lineHeight: 1.1, fontWeight: 900, marginBottom: 16, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+                        {currentSlide.title}
+                    </div>
+                    <div className="slideSub" style={{ fontSize: "1.15rem", color: "rgba(255,255,255,0.9)", fontWeight: 500, maxWidth: 450, lineHeight: 1.5 }}>
+                        {currentSlide.sub}
+                    </div>
+                    <button
+                        className="as-btn as-btn-primary"
+                        style={{ marginTop: 28, padding: "12px 36px", borderRadius: 8, fontWeight: 700, border: 0, fontSize: 15, boxShadow: "0 10px 20px rgba(0,0,0,0.2)" }}
+                    >
+                        {currentSlide.isSponsored ? "Xem ưu đãi" : "Mua ngay"}
+                    </button>
                 </div>
-                <div className="slideText">{SLIDES[slide].title}</div>
-                <div className="slideSub">{SLIDES[slide].sub}</div>
-                <button
-                  onClick={() => navigate("/products")}
-                  style={{ marginTop: 16, padding: "10px 28px", borderRadius: 999, background: "#fff", color: "#333", fontWeight: 700, border: 0, cursor: "pointer", fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
-                >
-                  Mua ngay →
-                </button>
               </div>
-              <button className="slideBtn slideLeft" onClick={() => goSlide(-1)}><FaChevronLeft size={14} /></button>
-              <button className="slideBtn slideRight" onClick={() => goSlide(1)}><FaChevronRight size={14} /></button>
-              <div className="dots">
-                {SLIDES.map((_, i) => (
-                  <div key={i} className={`dot ${slide === i ? "active" : ""}`} onClick={() => setSlide(i)} />
+
+              <button className="slideBtn slideLeft" onClick={(e) => { e.stopPropagation(); goSlide(-1); }} style={{ left: 15, zIndex: 10 }}><FaChevronLeft size={18} /></button>
+              <button className="slideBtn slideRight" onClick={(e) => { e.stopPropagation(); goSlide(1); }} style={{ right: 15, zIndex: 10 }}><FaChevronRight size={18} /></button>
+              
+              <div className="dots" style={{ bottom: 20, zIndex: 10 }}>
+                {displaySlides.map((_, i) => (
+                  <div key={i} className={`dot ${slide === i ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setSlide(i); }} />
                 ))}
               </div>
             </div>
 
             {/* SIDE BANNERS */}
             <div className="heroSide">
-              <div className="bannerSmall" style={{ background: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)", cursor: "pointer" }} onClick={() => navigate("/products?sort=popular")}>
+              <div className="bannerSmall" style={{ height: 144, background: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)", cursor: "pointer" }} onClick={() => navigate("/products?sort=popular")}>
                 <div className="tag">🔥 HOT DEAL</div>
-                <div className="txt" style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Giảm đến 50%</div>
+                <div className="txt" style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>Giảm đến 50%</div>
               </div>
-              <div className="bannerSmall" style={{ background: "linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)", cursor: "pointer" }} onClick={() => navigate("/products")}>
+              <div className="bannerSmall" style={{ height: 144, background: "linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)", cursor: "pointer" }} onClick={() => navigate("/products")}>
                 <div className="tag" style={{ background: "#4f46e5" }}>📦 FREESHIP</div>
-                <div className="txt" style={{ color: "#1e293b", fontWeight: 800, fontSize: 15 }}>Từ 500.000₫</div>
+                <div className="txt" style={{ color: "#1e293b", fontWeight: 800, fontSize: 16 }}>Từ 500.000₫</div>
               </div>
             </div>
           </div>
 
           {/* SHORTCUTS */}
-          <div className="shortcuts" style={{ marginTop: 14 }}>
+          <div className="shortcuts" style={{ marginTop: 16 }}>
             {SHORTCUTS.map(s => (
               <div key={s.label} className="shortcut" onClick={() => navigate(s.path)}>
                 <div className="shortcutIcon">{s.icon}</div>
-                <div>{s.label}</div>
+                <div style={{ fontWeight: 600 }}>{s.label}</div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* CATEGORIES */}
       <div className="section">
         <div className="container">
           <div className="blockTitle">DANH MỤC SẢN PHẨM</div>
@@ -197,7 +305,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FLASH SALE */}
       <div className="section">
         <div className="container">
           <div className="blockTitle">
@@ -243,8 +350,39 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      {aiRecs.length > 0 && (
+        <div className="section" style={{ background: "linear-gradient(to bottom, #f8fafc, #fff)", padding: "20px 0" }}>
+          <div className="container">
+            <div className="blockTitle" style={{ color: "var(--primary)", borderBottom: "2px solid var(--primary-light)", paddingBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ padding: 8, background: "var(--primary-light)", borderRadius: 12, color: "var(--primary)" }}>
+                  <FaMagic />
+                </div>
+                <span>GỢI Ý RIÊNG CHO BẠN (SỨC MẠNH AI)</span>
+              </div>
+            </div>
+            <div className="blockBody" style={{ marginTop: 24 }}>
+              <div className="products" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
+                {aiRecs.map(p => (
+                  <div key={p._id} className="pCard" onClick={() => navigate(`/product/${p._id}`)} style={{ border: "1px solid var(--line)" }}>
+                    <div className="pImg">
+                      {p.images?.[0] ? <img src={p.images[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 40, opacity: 0.2 }}>📦</span>}
+                    </div>
+                    <div className="pBody">
+                      <div className="pName">{p.name}</div>
+                      <div className="pPriceRow">
+                        <div className="pPrice" style={{ color: "var(--primary)" }}>{fmt(p.finalPrice ?? p.price)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* GỢI Ý HÔM NAY */}
       <div className="section" style={{ marginBottom: 40 }}>
         <div className="container">
           <div className="blockTitle">

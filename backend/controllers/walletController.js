@@ -4,6 +4,15 @@ const moment = require("moment");
 const qs = require("qs");
 const { vnpaySortObject, buildSignData, createVnpaySignature } = require("../utils/payUtils");
 
+const emitWalletUpdate = (req, userId) => {
+  const io = req.app.get("io");
+  if (!io || !global.userSockets || !userId) return;
+  const socketId = global.userSockets.get(userId.toString());
+  if (socketId) {
+    io.to(socketId).emit("wallet_updated");
+  }
+};
+
 // @desc    Lấy thông tin ví và lịch sử giao dịch
 const getWallet = async (req, res) => {
   try {
@@ -133,7 +142,7 @@ const verifyVnpayPayment = async (req, res) => {
     const { verifyVnpaySignature } = require("../utils/payUtils");
     const isVerified  = verifyVnpaySignature(secretKey, vnp_Params);
 
-    const frontendUrl = "http://localhost:3000/buyer/wallet/vnpay-return";
+    const frontendUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/buyer/wallet`;
     const queryStr    = qs.stringify(req.query);
 
     if (!isVerified) {
@@ -182,6 +191,8 @@ const verifyVnpayPayment = async (req, res) => {
       });
     }
 
+    emitWalletUpdate(req, userId);
+
     return res.redirect(`${frontendUrl}?${queryStr}`);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -209,6 +220,8 @@ const depositToWallet = async (req, res) => {
       description: description || "Nạp tiền",
     });
 
+    emitWalletUpdate(req, req.user._id);
+
     res.status(200).json({ message: "Nạp tiền thành công", wallet });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -235,6 +248,8 @@ const withdrawFromWallet = async (req, res) => {
       status: "COMPLETED",
       description: description || "Rút tiền về ngân hàng",
     });
+
+    emitWalletUpdate(req, req.user._id);
 
     res.status(200).json({ message: "Rút tiền thành công", wallet });
   } catch (error) {

@@ -17,8 +17,11 @@ exports.addReview = async (req, res) => {
       status: { $in: ["delivered", "completed"] }
     }).sort({ createdAt: -1 });
 
+    console.log(`Review Request - User: ${buyerId}, Product: ${productId}`);
+    console.log(`Found ${completedOrders.length} eligible orders.`);
+
     if (completedOrders.length === 0) {
-      return res.status(400).json({ message: "Bạn phải nhận được hàng (Đã giao/Hoàn thành) thì mới có thể đánh giá." });
+      return res.status(400).json({ message: "Bạn phải nhận được hàng (Đã giao/Hoàn thành) thì mới có thể đánh giá. Vui lòng kiểm tra lại trạng thái đơn hàng." });
     }
 
     // 2. Tìm xem user đã đánh giá sản phẩm này chưa.
@@ -74,6 +77,14 @@ exports.addReview = async (req, res) => {
         message: `Sản phẩm "${updatedProduct.name}" vừa nhận được đánh giá ${rating} sao từ người mua.`,
         link: `/product/${updatedProduct._id}`,
       });
+      
+      const io = req.app.get("io");
+      if (io && global.userSockets) {
+        const sellerSocketId = global.userSockets.get(updatedProduct.seller.toString());
+        if (sellerSocketId) {
+            io.to(sellerSocketId).emit("seller_badge_update");
+        }
+      }
     }
 
     const populatedReview = await Review.findById(review._id).populate("buyer", "name");
@@ -132,6 +143,14 @@ exports.replyReview = async (req, res) => {
     review.sellerReply = reply;
     review.sellerReplyAt = new Date();
     await review.save();
+
+    const io = req.app.get("io");
+    if (io && global.userSockets) {
+        const sellerSocketId = global.userSockets.get(review.seller.toString());
+        if (sellerSocketId) {
+            io.to(sellerSocketId).emit("seller_badge_update");
+        }
+    }
 
     res.json({ message: "Đã phản hồi đánh giá", review });
   } catch (error) {

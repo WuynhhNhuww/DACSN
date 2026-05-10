@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, useRef } from "react";
 import { FaPaperPlane, FaUser, FaStore } from "react-icons/fa";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 export default function SellerMessages() {
     const { user } = useContext(AuthContext);
@@ -26,26 +27,54 @@ export default function SellerMessages() {
             }
         };
         fetchConversations();
-
-        // Polling conversations list every 10s to see new customers
-        const interval = setInterval(fetchConversations, 10000);
-        return () => clearInterval(interval);
     }, [user]);
 
-    // Fetch messages for active chat
+    // Socket connection
     useEffect(() => {
-        let interval;
-        if (activeChat) {
-            const fetchMsg = async () => {
-                try {
-                    const res = await axiosClient.get(`/api/chat/${activeChat._id}`);
-                    setMessages(res.data);
-                } catch (err) { }
+        if (user) {
+            socket.emit("join", user._id);
+
+            const handleNewMessage = (msg) => {
+                // Update messages if this message belongs to active chat
+                if (activeChat && (msg.sender === activeChat._id || msg.receiver === activeChat._id)) {
+                    setMessages(prev => {
+                        if (prev.some(m => m._id === msg._id)) return prev;
+                        return [...prev, msg];
+                    });
+                    
+                    if (msg.receiver === user._id) {
+                        axiosClient.patch(`/api/chat/${activeChat._id}/read`).then(() => {
+                            window.dispatchEvent(new Event("chat_read"));
+                        }).catch(console.error);
+                    }
+                }
+                
+                // Refresh conversations list to show last message
+                axiosClient.get("/api/chat/conversations")
+                    .then(res => setConversations(res.data))
+                    .catch(console.error);
             };
-            fetchMsg();
-            interval = setInterval(fetchMsg, 3000); // Polling fast for messages
+
+            socket.on("new_message", handleNewMessage);
+            return () => socket.off("new_message", handleNewMessage);
         }
-        return () => clearInterval(interval);
+    }, [user, activeChat]);
+
+    useEffect(() => {
+        if (activeChat) {
+            axiosClient.get(`/api/chat/${activeChat._id}`)
+                .then(res => {
+                    setMessages(res.data);
+                    return axiosClient.patch(`/api/chat/${activeChat._id}/read`);
+                })
+                .then(() => {
+                    window.dispatchEvent(new Event("chat_read"));
+                    setConversations(prev => prev.map(c => 
+                        c.user._id === activeChat._id ? { ...c, unreadCount: 0 } : c
+                    ));
+                })
+                .catch(err => console.error("Lỗi lấy tin nhắn:", err));
+        }
     }, [activeChat]);
 
     // Auto-scroll
@@ -108,14 +137,24 @@ export default function SellerMessages() {
                                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--as-primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", flexShrink: 0 }}>
                                     <FaUser />
                                 </div>
-                                <div style={{ overflow: "hidden" }}>
-                                    <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--as-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                <div style={{ overflow: "hidden", flex: 1 }}>
+                                    <div style={{ fontWeight: (c.unreadCount > 0) ? 700 : 600, fontSize: "0.95rem", color: "var(--as-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                         {c.user.name}
                                     </div>
-                                    <div style={{ fontSize: "0.85rem", color: "var(--as-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 4 }}>
+                                    <div style={{ fontSize: "0.85rem", color: (c.unreadCount > 0) ? "var(--as-text)" : "var(--as-text-muted)", fontWeight: (c.unreadCount > 0) ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 4 }}>
                                         {c.lastMessage}
                                     </div>
                                 </div>
+                                {c.unreadCount > 0 && (
+                                    <div style={{
+                                        background: "var(--as-primary)", color: "#fff", borderRadius: "50%",
+                                        fontSize: 10, fontWeight: 700, minWidth: 20, height: 20,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        padding: "0 4px"
+                                    }}>
+                                        {c.unreadCount > 9 ? "9+" : c.unreadCount}
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}

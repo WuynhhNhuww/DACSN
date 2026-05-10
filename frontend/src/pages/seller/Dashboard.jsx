@@ -4,6 +4,7 @@ import { FaMoneyBillWave, FaClipboardList, FaBox, FaWarehouse, FaArrowUp, FaArro
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import axiosClient from "../../api/axiosClient";
 import { AuthContext } from "../../context/AuthContext";
+import socket from "../../utils/socket";
 
 const fmt = (n) => `₫${Number(n || 0).toLocaleString("vi-VN")}`;
 
@@ -15,11 +16,28 @@ export default function SellerDashboard() {
 
     useEffect(() => {
         if (!user) { navigate("/login"); return; }
-        axiosClient.get("/api/seller/analytics")
-            .then(res => setData(res.data))
-            .catch(() => { })
-            .finally(() => setLoading(false));
-    }, [user]);
+
+        const fetchAnalytics = () => {
+            axiosClient.get("/api/seller/analytics")
+                .then(res => setData(res.data))
+                .catch(() => { })
+                .finally(() => setLoading(false));
+        };
+
+        fetchAnalytics();
+
+        // Real-time updates
+        socket.emit("join", user._id);
+        socket.on("order_updated", fetchAnalytics);
+        socket.on("new_order", fetchAnalytics);
+        socket.on("wallet_updated", fetchAnalytics);
+
+        return () => {
+            socket.off("order_updated", fetchAnalytics);
+            socket.off("new_order", fetchAnalytics);
+            socket.off("wallet_updated", fetchAnalytics);
+        };
+    }, [user, navigate]);
 
     const stats = [
         { icon: <FaMoneyBillWave />, label: "Doanh thu (Đã giao & HT)", val: fmt(data?.totalRevenue), color: "var(--as-success)", bg: "rgba(16, 185, 129, 0.1)", path: "/seller/orders" },
